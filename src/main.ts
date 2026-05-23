@@ -12,4 +12,5 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [AquariumScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+(window as any).__GAME__ = game;

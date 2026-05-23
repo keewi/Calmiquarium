@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 import { Fish } from '../objects/Fish';
 import { ShopPopup } from '../ui/ShopPopup';
+import { loadGame, saveGame } from '../SaveManager';
 
 export class AquariumScene extends Phaser.Scene {
   coins = 100;
   fish: Fish[] = [];
 
   private coinText!: Phaser.GameObjects.Text;
+  private coinDisplayGlow!: Phaser.GameObjects.Arc;
   private shopButton!: Phaser.GameObjects.Container;
   private shopPopup!: ShopPopup;
   private sandHeight = 60;
@@ -16,11 +18,21 @@ export class AquariumScene extends Phaser.Scene {
   }
 
   create() {
+    const save = loadGame();
+    this.coins = save.coins;
+
     this.createBackground();
     this.createBubbles();
     this.createCoinDisplay();
     this.createShopButton();
     this.shopPopup = new ShopPopup(this);
+
+    for (let i = 0; i < save.fishCount; i++) {
+      const x = Phaser.Math.Between(80, this.scale.width - 80);
+      const y = Phaser.Math.Between(80, this.scale.height - this.sandHeight - 80);
+      const fish = new Fish(this, x, y);
+      this.fish.push(fish);
+    }
 
     this.scale.on('resize', () => {
       this.repositionUI();
@@ -31,28 +43,75 @@ export class AquariumScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const waterHeight = height - this.sandHeight;
 
-    const stripes = 10;
-    const stripeH = Math.ceil(waterHeight / stripes);
-    for (let i = 0; i < stripes; i++) {
-      const t = i / (stripes - 1);
-      const color = (Math.round(Phaser.Math.Linear(0x08, 0x1a, t)) << 16)
-        | (Math.round(Phaser.Math.Linear(0x14, 0x3a, t)) << 8)
-        | Math.round(Phaser.Math.Linear(0x28, 0x5c, t));
-      const stripe = this.add.rectangle(width / 2, i * stripeH + stripeH / 2, width, stripeH + 1, color);
-      stripe.setDepth(-10);
-    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = waterHeight;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createLinearGradient(0, 0, 0, waterHeight);
+    gradient.addColorStop(0, '#1a3a5c');
+    gradient.addColorStop(1, '#081428');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1, waterHeight);
+    this.textures.addCanvas('water-gradient', canvas);
+    const bg = this.add.image(width / 2, waterHeight / 2, 'water-gradient');
+    bg.setDisplaySize(width, waterHeight);
+    bg.setDepth(-10);
 
     const sand = this.add.rectangle(width / 2, height - this.sandHeight / 2, width, this.sandHeight, 0xc2956b);
     sand.setDepth(-5);
 
     for (let i = 0; i < 8; i++) {
       const x = Phaser.Math.Between(50, width - 50);
-      const plantHeight = Phaser.Math.Between(40, 120);
-      const plant = this.add.rectangle(
-        x, height - this.sandHeight - plantHeight / 2,
-        8, plantHeight, 0x3da85e, 0.7
+      const h = Phaser.Math.Between(50, 130);
+      const w = Phaser.Math.Between(10, 16);
+      const green = Phaser.Display.Color.Interpolate.ColorWithColor(
+        new Phaser.Display.Color(45, 138, 78),
+        new Phaser.Display.Color(78, 202, 110),
+        100, Phaser.Math.Between(0, 100)
       );
+      const color = Phaser.Display.Color.GetColor(green.r, green.g, green.b);
+
+      const plant = this.add.graphics();
+      plant.fillStyle(color, 0.8);
+
+      const steps = 20;
+      plant.beginPath();
+      plant.moveTo(0, 0);
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const py = -t * h;
+        const bulge = Math.sin(t * Math.PI);
+        const px = -(w / 2) * bulge;
+        if (s === 0) plant.moveTo(px, py);
+        else plant.lineTo(px, py);
+      }
+      for (let s = steps; s >= 0; s--) {
+        const t = s / steps;
+        const py = -t * h;
+        const bulge = Math.sin(t * Math.PI);
+        const px = (w / 2) * bulge;
+        plant.lineTo(px, py);
+      }
+      plant.closePath();
+      plant.fillPath();
+
+      plant.setPosition(x, height - this.sandHeight);
       plant.setDepth(-4);
+
+      const container = this.add.container(x, height - this.sandHeight, []);
+      container.add(plant);
+      plant.setPosition(0, 0);
+      container.setDepth(-4);
+
+      this.tweens.add({
+        targets: container,
+        angle: Phaser.Math.Between(-6, -2),
+        duration: Phaser.Math.Between(1800, 3000),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+        delay: Phaser.Math.Between(0, 1500),
+      });
     }
   }
 
@@ -78,6 +137,8 @@ export class AquariumScene extends Phaser.Scene {
   }
 
   private createCoinDisplay() {
+    this.coinDisplayGlow = this.add.circle(10, 0, 30, 0xffd700, 0);
+
     const coinIcon = this.add.circle(0, 0, 12, 0xffd700);
     const coinSymbol = this.add.text(0, 0, '$', {
       fontSize: '14px',
@@ -95,7 +156,7 @@ export class AquariumScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    const container = this.add.container(this.scale.width - 100, 30, [coinIcon, coinSymbol, this.coinText]);
+    const container = this.add.container(this.scale.width - 100, 30, [this.coinDisplayGlow, coinIcon, coinSymbol, this.coinText]);
     container.setDepth(100);
     container.setName('coinDisplay');
   }
@@ -143,6 +204,29 @@ export class AquariumScene extends Phaser.Scene {
 
   updateCoinDisplay() {
     this.coinText.setText(`${this.coins}`);
+    this.save();
+  }
+
+  save() {
+    saveGame({ coins: this.coins, fishCount: this.fish.length });
+  }
+
+  flashCoinDisplay(onPeak: () => void) {
+    this.tweens.add({
+      targets: this.coinDisplayGlow,
+      alpha: 0.4,
+      duration: 250,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        onPeak();
+        this.tweens.add({
+          targets: this.coinDisplayGlow,
+          alpha: 0,
+          duration: 250,
+          ease: 'Quad.easeIn',
+        });
+      },
+    });
   }
 
   spawnFish() {
@@ -153,6 +237,7 @@ export class AquariumScene extends Phaser.Scene {
     this.time.delayedCall(200, () => {
       const fish = new Fish(this, cx, cy);
       this.fish.push(fish);
+      this.save();
     });
   }
 
