@@ -5,7 +5,6 @@ export class Coin {
   private scene: AquariumScene;
   private container: Phaser.GameObjects.Container;
   private glow: Phaser.GameObjects.Arc;
-  private settled = false;
   private collected = false;
   private sandY: number;
 
@@ -37,7 +36,7 @@ export class Coin {
       y: this.sandY,
       duration: Phaser.Math.Between(1500, 2500),
       ease: 'Quad.easeIn',
-      onComplete: () => { this.settled = true; },
+      onComplete: () => {},
     });
   }
 
