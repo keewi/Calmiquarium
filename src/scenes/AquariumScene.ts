@@ -131,8 +131,8 @@ export class AquariumScene extends Phaser.Scene {
     canvas.height = waterHeight;
     const ctx = canvas.getContext('2d')!;
     const gradient = ctx.createLinearGradient(0, 0, 0, waterHeight);
-    gradient.addColorStop(0, '#1a3a5c');
-    gradient.addColorStop(1, '#081428');
+    gradient.addColorStop(0, '#4a9ece');
+    gradient.addColorStop(1, '#1a3a5c');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1, waterHeight);
     this.textures.addCanvas('water-gradient', canvas);
@@ -143,59 +143,164 @@ export class AquariumScene extends Phaser.Scene {
     const sand = this.add.rectangle(width / 2, height - this.sandHeight / 2, width, this.sandHeight, 0xc2956b);
     sand.setDepth(-5);
 
+    // seaweed — broad kelp-like leaves with ruffled edges
+    interface SeaweedBlade {
+      gfx: Phaser.GameObjects.Graphics;
+      x: number; baseY: number; h: number; maxW: number;
+      color: number; darkColor: number; highlightColor: number;
+      phase: number; swaySpeed: number; swayAmount: number;
+      ruffleSeeds: number[]; // per-step random offsets for edge ruffles
+    }
+    const seaweedData: SeaweedBlade[] = [];
+    const seaweedSteps = 28;
+
     for (let i = 0; i < 8; i++) {
-      const x = Phaser.Math.Between(50, width - 50);
-      const h = Phaser.Math.Between(50, 130);
-      const w = Phaser.Math.Between(10, 16);
+      const sx = Phaser.Math.Between(40, width - 40);
+      const h = Phaser.Math.Between(80, 160);
+      const maxW = Phaser.Math.Between(18, 30); // much wider — leaf-like
+      const brightness = Phaser.Math.Between(0, 100);
       const green = Phaser.Display.Color.Interpolate.ColorWithColor(
-        new Phaser.Display.Color(45, 138, 78),
-        new Phaser.Display.Color(78, 202, 110),
-        100, Phaser.Math.Between(0, 100)
+        new Phaser.Display.Color(30, 110, 55),
+        new Phaser.Display.Color(55, 170, 80),
+        100, brightness
+      );
+      const dark = Phaser.Display.Color.Interpolate.ColorWithColor(
+        new Phaser.Display.Color(18, 70, 35),
+        new Phaser.Display.Color(35, 120, 50),
+        100, brightness
+      );
+      const hl = Phaser.Display.Color.Interpolate.ColorWithColor(
+        new Phaser.Display.Color(60, 160, 80),
+        new Phaser.Display.Color(90, 210, 120),
+        100, brightness
       );
       const color = Phaser.Display.Color.GetColor(green.r, green.g, green.b);
+      const darkColor = Phaser.Display.Color.GetColor(dark.r, dark.g, dark.b);
+      const highlightColor = Phaser.Display.Color.GetColor(hl.r, hl.g, hl.b);
 
-      const plant = this.add.graphics();
-      plant.fillStyle(color, 0.8);
-
-      const steps = 20;
-      plant.beginPath();
-      plant.moveTo(0, 0);
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        const py = -t * h;
-        const bulge = Math.sin(t * Math.PI);
-        const px = -(w / 2) * bulge;
-        if (s === 0) plant.moveTo(px, py);
-        else plant.lineTo(px, py);
+      // pre-generate random ruffle offsets so edges are bumpy but stable
+      const ruffleSeeds: number[] = [];
+      for (let s = 0; s <= seaweedSteps; s++) {
+        ruffleSeeds.push((Math.random() - 0.5) * 2); // -1 to 1
       }
-      for (let s = steps; s >= 0; s--) {
-        const t = s / steps;
-        const py = -t * h;
-        const bulge = Math.sin(t * Math.PI);
-        const px = (w / 2) * bulge;
-        plant.lineTo(px, py);
-      }
-      plant.closePath();
-      plant.fillPath();
 
-      plant.setPosition(x, height - this.sandHeight);
-      plant.setDepth(-4);
+      const gfx = this.add.graphics();
+      gfx.setDepth(-4);
 
-      const container = this.add.container(x, height - this.sandHeight, []);
-      container.add(plant);
-      plant.setPosition(0, 0);
-      container.setDepth(-4);
-
-      this.tweens.add({
-        targets: container,
-        angle: Phaser.Math.Between(-6, -2),
-        duration: Phaser.Math.Between(1800, 3000),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-        delay: Phaser.Math.Between(0, 1500),
+      seaweedData.push({
+        gfx, x: sx, baseY: height - this.sandHeight, h, maxW, color, darkColor, highlightColor,
+        phase: Math.random() * Math.PI * 2,
+        swaySpeed: Phaser.Math.FloatBetween(0.6, 1.2),
+        swayAmount: Phaser.Math.FloatBetween(10, 20),
+        ruffleSeeds,
       });
     }
+
+    // redraw seaweed each frame
+    this.events.on('update', () => {
+      const time = this.time.now / 1000;
+      for (const sw of seaweedData) {
+        sw.gfx.clear();
+
+        const leftPts: { x: number; y: number }[] = [];
+        const rightPts: { x: number; y: number }[] = [];
+        const centerPts: { x: number; y: number }[] = [];
+
+        // gentle current lean
+        const currentDrift = Math.sin(time * sw.swaySpeed + sw.phase) * sw.swayAmount;
+        const secondaryDrift = Math.sin(time * sw.swaySpeed * 0.37 + sw.phase + 2.5) * sw.swayAmount * 0.25;
+
+        for (let s = 0; s <= seaweedSteps; s++) {
+          const t = s / seaweedSteps; // 0=base, 1=tip
+          const py = sw.baseY - t * sw.h;
+
+          // cumulative lean from current
+          const lean = (currentDrift + secondaryDrift) * Math.pow(t, 1.5);
+
+          // leaf shape: narrow at base, widest around 35-55%, tapers to rounded tip
+          // using a bell-curve-like shape
+          const leafShape = Math.sin(t * Math.PI) * Math.pow(1 - t * 0.3, 0.5);
+          // narrow stem at very bottom
+          const stemFactor = Math.min(t * 5, 1); // ramps from 0 to 1 over first 20%
+          const halfW = (sw.maxW / 2) * leafShape * stemFactor;
+
+          // ruffled edges — wavy offset that animates slightly
+          const ruffleAmount = halfW * 0.25;
+          const ruffleL = sw.ruffleSeeds[s] * ruffleAmount * Math.sin(time * 0.8 + s * 0.5 + sw.phase);
+          const ruffleR = sw.ruffleSeeds[seaweedSteps - s] * ruffleAmount * Math.sin(time * 0.7 + s * 0.6 + sw.phase + 1);
+
+          const cx = sw.x + lean;
+          centerPts.push({ x: cx, y: py });
+          leftPts.push({ x: cx - halfW + ruffleL, y: py });
+          rightPts.push({ x: cx + halfW + ruffleR, y: py });
+        }
+
+        // darker back layer for depth
+        sw.gfx.fillStyle(sw.darkColor, 0.5);
+        sw.gfx.beginPath();
+        sw.gfx.moveTo(leftPts[0].x + 2, leftPts[0].y);
+        for (let s = 1; s < leftPts.length; s++) {
+          sw.gfx.lineTo(leftPts[s].x + 2, leftPts[s].y);
+        }
+        for (let s = rightPts.length - 1; s >= 0; s--) {
+          sw.gfx.lineTo(rightPts[s].x + 2, rightPts[s].y);
+        }
+        sw.gfx.closePath();
+        sw.gfx.fillPath();
+
+        // main leaf blade
+        sw.gfx.fillStyle(sw.color, 0.9);
+        sw.gfx.beginPath();
+        sw.gfx.moveTo(leftPts[0].x, leftPts[0].y);
+        for (let s = 1; s < leftPts.length; s++) {
+          sw.gfx.lineTo(leftPts[s].x, leftPts[s].y);
+        }
+        for (let s = rightPts.length - 1; s >= 0; s--) {
+          sw.gfx.lineTo(rightPts[s].x, rightPts[s].y);
+        }
+        sw.gfx.closePath();
+        sw.gfx.fillPath();
+
+        // lighter highlight on right half (light coming from right)
+        sw.gfx.fillStyle(sw.highlightColor, 0.2);
+        sw.gfx.beginPath();
+        sw.gfx.moveTo(centerPts[0].x, centerPts[0].y);
+        for (let s = 1; s < centerPts.length; s++) {
+          sw.gfx.lineTo(centerPts[s].x, centerPts[s].y);
+        }
+        for (let s = rightPts.length - 1; s >= 0; s--) {
+          sw.gfx.lineTo(rightPts[s].x, rightPts[s].y);
+        }
+        sw.gfx.closePath();
+        sw.gfx.fillPath();
+
+        // center midrib vein
+        sw.gfx.lineStyle(1.5, sw.darkColor, 0.4);
+        sw.gfx.beginPath();
+        for (let s = 0; s < centerPts.length; s++) {
+          if (s === 0) sw.gfx.moveTo(centerPts[s].x, centerPts[s].y);
+          else sw.gfx.lineTo(centerPts[s].x, centerPts[s].y);
+        }
+        sw.gfx.strokePath();
+
+        // side veins branching from midrib
+        sw.gfx.lineStyle(0.8, sw.darkColor, 0.2);
+        for (let s = 3; s < seaweedSteps - 2; s += 3) {
+          const t = s / seaweedSteps;
+          if (t < 0.15 || t > 0.9) continue;
+          // left vein
+          sw.gfx.beginPath();
+          sw.gfx.moveTo(centerPts[s].x, centerPts[s].y);
+          sw.gfx.lineTo(leftPts[s].x * 0.6 + centerPts[s].x * 0.4, leftPts[s].y - 2);
+          sw.gfx.strokePath();
+          // right vein
+          sw.gfx.beginPath();
+          sw.gfx.moveTo(centerPts[s].x, centerPts[s].y);
+          sw.gfx.lineTo(rightPts[s].x * 0.6 + centerPts[s].x * 0.4, rightPts[s].y - 2);
+          sw.gfx.strokePath();
+        }
+      }
+    });
   }
 
   private createBubbles() {
@@ -337,6 +442,11 @@ export class AquariumScene extends Phaser.Scene {
         });
       },
     });
+  }
+
+  removeDead() {
+    this.fish = this.fish.filter(f => !f.dead);
+    this.save();
   }
 
   spawnFish() {

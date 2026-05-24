@@ -35,16 +35,68 @@ export class ShopPopup {
     divider.lineBetween(-140, -80, 140, -80);
 
     const fishPreview = scene.add.graphics();
+    const fy = -40; // center y for fish preview
+
+    // tail
+    fishPreview.fillStyle(0xffa040, 0.9);
+    fishPreview.beginPath();
+    fishPreview.moveTo(-19, fy - 3);
+    fishPreview.lineTo(-27, fy - 12);
+    fishPreview.lineTo(-25, fy);
+    fishPreview.lineTo(-27, fy + 12);
+    fishPreview.lineTo(-19, fy + 3);
+    fishPreview.closePath();
+    fishPreview.fillPath();
+
+    // main body
     fishPreview.fillStyle(0xff8c00, 1);
-    fishPreview.fillEllipse(0, -40, 48, 28);
-    fishPreview.fillStyle(0xffa040, 1);
-    fishPreview.fillTriangle(-24, -40, -38, -52, -38, -28);
-    fishPreview.fillStyle(0xff7800, 0.7);
-    fishPreview.fillTriangle(0, -50, -5, -58, 5, -58);
+    fishPreview.fillEllipse(0, fy, 40, 26);
+
+    // darker back
+    fishPreview.fillStyle(0xe07800, 0.5);
+    fishPreview.fillEllipse(0, fy - 4, 36, 14);
+
+    // belly highlight
+    fishPreview.fillStyle(0xffcc44, 0.6);
+    fishPreview.fillEllipse(2, fy + 5, 28, 12);
+
+    // specular highlight
+    fishPreview.fillStyle(0xffffff, 0.25);
+    fishPreview.fillEllipse(4, fy - 6, 16, 7);
+
+    // dorsal fin
+    fishPreview.fillStyle(0xff7800, 0.8);
+    fishPreview.beginPath();
+    fishPreview.moveTo(-4, fy - 12);
+    fishPreview.lineTo(0, fy - 20);
+    fishPreview.lineTo(6, fy - 18);
+    fishPreview.lineTo(8, fy - 12);
+    fishPreview.closePath();
+    fishPreview.fillPath();
+
+    // pectoral fin
+    fishPreview.fillStyle(0xff9030, 0.7);
+    fishPreview.fillEllipse(4, fy + 8, 10, 6);
+
+    // eye
     fishPreview.fillStyle(0xffffff, 1);
-    fishPreview.fillCircle(12, -43, 6);
+    fishPreview.fillCircle(12, fy - 3, 6.5);
+    fishPreview.fillStyle(0x1a1a2e, 1);
+    fishPreview.fillCircle(13.5, fy - 3, 4);
     fishPreview.fillStyle(0x000000, 1);
-    fishPreview.fillCircle(13, -43, 3);
+    fishPreview.fillCircle(14, fy - 3, 2.5);
+    fishPreview.fillStyle(0xffffff, 0.9);
+    fishPreview.fillCircle(12, fy - 5, 1.8);
+
+    // smile
+    fishPreview.lineStyle(1.5, 0xcc6600, 0.7);
+    fishPreview.beginPath();
+    fishPreview.arc(16, fy + 2, 3, 0.2, Math.PI * 0.7, false);
+    fishPreview.strokePath();
+
+    // cheek blush
+    fishPreview.fillStyle(0xff6666, 0.15);
+    fishPreview.fillCircle(14, fy + 4, 4);
 
     const fishName = scene.add.text(0, -10, 'Goldfish', {
       fontSize: '20px',

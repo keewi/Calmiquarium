@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 
 const COLLECT_RADIUS = 28;
-const COIN_FALL_SPEED = 120; // px per second
+const COIN_FALL_SPEED = 390; // px per second
 
 export class Coin {
   private scene: AquariumScene;

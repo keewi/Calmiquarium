@@ -1,6 +1,6 @@
 import { AquariumScene } from '../scenes/AquariumScene';
 
-const PELLET_FALL_SPEED = 60; // px per second — slower than coins
+const PELLET_FALL_SPEED = 80; // px per second
 
 export class FoodPellet {
   container: Phaser.GameObjects.Container;
@@ -29,12 +29,29 @@ export class FoodPellet {
   }
 
   update(delta: number) {
-    if (this.settled || this.consumed) return;
+    if (this.consumed) return;
+    if (this.settled) return;
     this.container.y += PELLET_FALL_SPEED * (delta / 1000);
     if (this.container.y >= this.sandY) {
       this.container.y = this.sandY;
       this.settled = true;
+      this.consume();
     }
+  }
+
+  consume() {
+    if (this.consumed) return;
+    this.consumed = true;
+    const scene = this.container.scene;
+    scene.tweens.add({
+      targets: this.container,
+      scaleX: 0,
+      scaleY: 0,
+      alpha: 0,
+      duration: 300,
+      ease: 'Quad.easeIn',
+      onComplete: () => this.container.destroy(),
+    });
   }
 
   private drawPellet(g: Phaser.GameObjects.Graphics) {
