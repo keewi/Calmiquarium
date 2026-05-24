@@ -2,246 +2,142 @@ import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 
 const GOLDFISH_COST = 50;
+const BAR_HEIGHT = 72;
+const CIRCLE_RADIUS = 24;
 
 export class ShopPopup {
   private scene: AquariumScene;
   private container: Phaser.GameObjects.Container;
-  private overlay: Phaser.GameObjects.Rectangle;
-  private visible = false;
+  private priceText!: Phaser.GameObjects.Text;
+  private circleBg!: Phaser.GameObjects.Graphics;
 
   constructor(scene: AquariumScene) {
     this.scene = scene;
 
-    this.overlay = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0.5);
-    this.overlay.setOrigin(0, 0);
-    this.overlay.setInteractive();
-    this.overlay.on('pointerdown', () => this.hide());
+    const { width } = scene.scale;
 
-    const panel = scene.add.graphics();
-    panel.fillStyle(0x1a2a4a, 0.95);
-    panel.fillRoundedRect(-160, -130, 320, 260, 16);
-    panel.lineStyle(2, 0x4488cc, 1);
-    panel.strokeRoundedRect(-160, -130, 320, 260, 16);
+    // semi-transparent bar background
+    const barBg = scene.add.graphics();
+    this.drawBarBg(barBg, width);
 
-    const title = scene.add.text(0, -105, 'Shop', {
-      fontSize: '28px',
-      color: '#88ccff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
+    // --- goldfish circle button ---
+    this.circleBg = scene.add.graphics();
+    this.drawCircleBg(this.circleBg, false);
+
+    // small fish icon centered in circle
+    const fishIcon = scene.add.graphics();
+    this.drawMinifish(fishIcon, 0, -4);
+
+    // price label below the circle
+    this.priceText = scene.add.text(0, CIRCLE_RADIUS + 8, `$${GOLDFISH_COST}`, {
+      fontSize: '12px', color: '#ffd700', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const divider = scene.add.graphics();
-    divider.lineStyle(1, 0x4488cc, 0.5);
-    divider.lineBetween(-140, -80, 140, -80);
-
-    const fishPreview = scene.add.graphics();
-    const fy = -40; // center y for fish preview
-
-    // tail
-    fishPreview.fillStyle(0xffa040, 0.9);
-    fishPreview.beginPath();
-    fishPreview.moveTo(-19, fy - 3);
-    fishPreview.lineTo(-27, fy - 12);
-    fishPreview.lineTo(-25, fy);
-    fishPreview.lineTo(-27, fy + 12);
-    fishPreview.lineTo(-19, fy + 3);
-    fishPreview.closePath();
-    fishPreview.fillPath();
-
-    // main body
-    fishPreview.fillStyle(0xff8c00, 1);
-    fishPreview.fillEllipse(0, fy, 40, 26);
-
-    // darker back
-    fishPreview.fillStyle(0xe07800, 0.5);
-    fishPreview.fillEllipse(0, fy - 4, 36, 14);
-
-    // belly highlight
-    fishPreview.fillStyle(0xffcc44, 0.6);
-    fishPreview.fillEllipse(2, fy + 5, 28, 12);
-
-    // specular highlight
-    fishPreview.fillStyle(0xffffff, 0.25);
-    fishPreview.fillEllipse(4, fy - 6, 16, 7);
-
-    // dorsal fin
-    fishPreview.fillStyle(0xff7800, 0.8);
-    fishPreview.beginPath();
-    fishPreview.moveTo(-4, fy - 12);
-    fishPreview.lineTo(0, fy - 20);
-    fishPreview.lineTo(6, fy - 18);
-    fishPreview.lineTo(8, fy - 12);
-    fishPreview.closePath();
-    fishPreview.fillPath();
-
-    // pectoral fin
-    fishPreview.fillStyle(0xff9030, 0.7);
-    fishPreview.fillEllipse(4, fy + 8, 10, 6);
-
-    // eye
-    fishPreview.fillStyle(0xffffff, 1);
-    fishPreview.fillCircle(12, fy - 3, 6.5);
-    fishPreview.fillStyle(0x1a1a2e, 1);
-    fishPreview.fillCircle(13.5, fy - 3, 4);
-    fishPreview.fillStyle(0x000000, 1);
-    fishPreview.fillCircle(14, fy - 3, 2.5);
-    fishPreview.fillStyle(0xffffff, 0.9);
-    fishPreview.fillCircle(12, fy - 5, 1.8);
-
-    // smile
-    fishPreview.lineStyle(1.5, 0xcc6600, 0.7);
-    fishPreview.beginPath();
-    fishPreview.arc(16, fy + 2, 3, 0.2, Math.PI * 0.7, false);
-    fishPreview.strokePath();
-
-    // cheek blush
-    fishPreview.fillStyle(0xff6666, 0.15);
-    fishPreview.fillCircle(14, fy + 4, 4);
-
-    const fishName = scene.add.text(0, -10, 'Goldfish', {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    const coinIcon = scene.add.circle(-20, 20, 10, 0xffd700);
-    const coinSymbol = scene.add.text(-20, 20, '$', {
-      fontSize: '12px',
-      color: '#b8860b',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-    const priceText = scene.add.text(0, 20, `${GOLDFISH_COST}`, {
-      fontSize: '18px',
-      color: '#ffd700',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0, 0.5);
-
-    const buyBg = scene.add.graphics();
-    buyBg.fillStyle(0x22aa44, 0.9);
-    buyBg.fillRoundedRect(-140, 55, 135, 50, 10);
-    const buyText = scene.add.text(-72, 80, 'Buy', {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    const buyZone = scene.add.rectangle(-72, 80, 135, 50);
-    buyZone.setInteractive({ useHandCursor: true });
-    buyZone.on('pointerover', () => {
-      buyBg.clear();
-      buyBg.fillStyle(0x33cc55, 0.9);
-      buyBg.fillRoundedRect(-140, 55, 135, 50, 10);
-    });
-    buyZone.on('pointerout', () => {
-      buyBg.clear();
-      buyBg.fillStyle(0x22aa44, 0.9);
-      buyBg.fillRoundedRect(-140, 55, 135, 50, 10);
-    });
-    buyZone.on('pointerdown', () => this.handleBuy());
-
-    const cancelBg = scene.add.graphics();
-    cancelBg.fillStyle(0x664444, 0.9);
-    cancelBg.fillRoundedRect(5, 55, 135, 50, 10);
-    const cancelText = scene.add.text(72, 80, 'Cancel', {
-      fontSize: '20px',
-      color: '#cccccc',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    const cancelZone = scene.add.rectangle(72, 80, 135, 50);
-    cancelZone.setInteractive({ useHandCursor: true });
-    cancelZone.on('pointerover', () => {
-      cancelBg.clear();
-      cancelBg.fillStyle(0x885555, 0.9);
-      cancelBg.fillRoundedRect(5, 55, 135, 50, 10);
-    });
-    cancelZone.on('pointerout', () => {
-      cancelBg.clear();
-      cancelBg.fillStyle(0x664444, 0.9);
-      cancelBg.fillRoundedRect(5, 55, 135, 50, 10);
-    });
-    cancelZone.on('pointerdown', () => this.hide());
-
-    this.container = scene.add.container(
-      scene.scale.width / 2,
-      scene.scale.height / 2,
-      [panel, title, divider, fishPreview, fishName, coinIcon, coinSymbol, priceText, buyBg, buyText, buyZone, cancelBg, cancelText, cancelZone]
+    const itemContainer = scene.add.container(
+      60, BAR_HEIGHT / 2 - 4,
+      [this.circleBg, fishIcon, this.priceText],
     );
 
-    this.overlay.setDepth(200);
-    this.container.setDepth(201);
+    // circular interactive zone
+    const hitZone = scene.add.circle(0, -4, CIRCLE_RADIUS + 4);
+    itemContainer.add(hitZone);
+    hitZone.setInteractive({ useHandCursor: true });
+    hitZone.on('pointerover', () => this.drawCircleBg(this.circleBg, true));
+    hitZone.on('pointerout', () => this.drawCircleBg(this.circleBg, false));
+    hitZone.on('pointerdown', () => this.handleBuy());
 
-    this.overlay.setVisible(false);
-    this.container.setVisible(false);
+    this.container = scene.add.container(0, 0, [barBg, itemContainer]);
+    this.container.setDepth(100);
 
     scene.scale.on('resize', () => {
-      this.overlay.setSize(scene.scale.width, scene.scale.height);
-      this.container.setPosition(scene.scale.width / 2, scene.scale.height / 2);
+      barBg.clear();
+      this.drawBarBg(barBg, scene.scale.width);
     });
   }
 
-  show() {
-    if (this.visible) return;
-    this.visible = true;
-    this.scene.setShopOpen(true);
-    this.overlay.setVisible(true);
-    this.container.setVisible(true);
-    this.container.setScale(0.8);
-    this.container.setAlpha(0);
-    this.scene.tweens.add({
-      targets: this.container,
-      scaleX: 1,
-      scaleY: 1,
-      alpha: 1,
-      duration: 200,
-      ease: 'Back.easeOut',
-    });
+  private drawBarBg(g: Phaser.GameObjects.Graphics, width: number) {
+    g.fillStyle(0x0a1628, 0.7);
+    g.fillRect(0, 0, width, BAR_HEIGHT);
+    g.lineStyle(1, 0x4488cc, 0.3);
+    g.lineBetween(0, BAR_HEIGHT, width, BAR_HEIGHT);
   }
 
-  hide() {
-    if (!this.visible) return;
-    this.visible = false;
-    this.scene.setShopOpen(false);
-    this.scene.tweens.add({
-      targets: this.container,
-      scaleX: 0.8,
-      scaleY: 0.8,
-      alpha: 0,
-      duration: 150,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.overlay.setVisible(false);
-        this.container.setVisible(false);
-      },
-    });
+  private drawCircleBg(g: Phaser.GameObjects.Graphics, hover: boolean) {
+    g.clear();
+    // circle background
+    g.fillStyle(hover ? 0x335588 : 0x1e3050, 0.9);
+    g.fillCircle(0, -4, CIRCLE_RADIUS);
+    g.lineStyle(2, hover ? 0x88bbee : 0x4477aa, 0.7);
+    g.strokeCircle(0, -4, CIRCLE_RADIUS);
   }
+
+  private drawMinifish(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    // tail
+    g.fillStyle(0xffa040, 0.9);
+    g.beginPath();
+    g.moveTo(x - 10, y - 2);
+    g.lineTo(x - 15, y - 6);
+    g.lineTo(x - 14, y);
+    g.lineTo(x - 15, y + 6);
+    g.lineTo(x - 10, y + 2);
+    g.closePath();
+    g.fillPath();
+
+    // body
+    g.fillStyle(0xff8c00, 1);
+    g.fillEllipse(x, y, 22, 15);
+
+    // darker back
+    g.fillStyle(0xe07800, 0.4);
+    g.fillEllipse(x, y - 2, 18, 8);
+
+    // belly
+    g.fillStyle(0xffcc44, 0.5);
+    g.fillEllipse(x + 1, y + 3, 15, 7);
+
+    // specular
+    g.fillStyle(0xffffff, 0.2);
+    g.fillEllipse(x + 2, y - 3, 8, 4);
+
+    // eye
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(x + 6, y - 2, 3.5);
+    g.fillStyle(0x1a1a2e, 1);
+    g.fillCircle(x + 7, y - 2, 2.2);
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(x + 7.3, y - 2, 1.4);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(x + 5.8, y - 3.2, 1);
+  }
+
+  updatePriceColor() {
+    const canAfford = this.scene.coins >= GOLDFISH_COST;
+    this.priceText.setColor(canAfford ? '#ffd700' : '#ff4444');
+  }
+
+  // kept for compatibility — no-op since bar is always visible
+  show() {}
+  hide() {}
 
   private handleBuy() {
     if (this.scene.coins < GOLDFISH_COST) {
-      const flash = this.scene.add.text(
-        this.scene.scale.width / 2, this.scene.scale.height / 2 + 140,
-        'Not enough coins!',
-        { fontSize: '18px', color: '#ff4444', fontFamily: 'Arial', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }
-      ).setOrigin(0.5).setDepth(300);
-
+      // shake the price text
+      const origX = this.priceText.x;
       this.scene.tweens.add({
-        targets: flash,
-        y: flash.y - 30,
-        alpha: 0,
-        duration: 1200,
-        onComplete: () => flash.destroy(),
+        targets: this.priceText,
+        x: origX + 4,
+        duration: 50,
+        yoyo: true,
+        repeat: 3,
+        onComplete: () => this.priceText.setX(origX),
       });
       return;
     }
 
     this.scene.coins -= GOLDFISH_COST;
     this.scene.updateCoinDisplay();
-    this.hide();
     this.scene.spawnFish();
   }
+
+  static get BAR_HEIGHT() { return BAR_HEIGHT; }
 }

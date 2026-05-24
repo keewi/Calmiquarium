@@ -15,8 +15,7 @@ export class AquariumScene extends Phaser.Scene {
 
   private coinText!: Phaser.GameObjects.Text;
   private coinDisplayGlow!: Phaser.GameObjects.Arc;
-  private shopButton!: Phaser.GameObjects.Container;
-  private shopPopup!: ShopPopup;
+  private shopBar!: ShopPopup;
   private settingsPopup!: SettingsPopup;
   private sandHeight = 60;
 
@@ -31,9 +30,8 @@ export class AquariumScene extends Phaser.Scene {
     this.createBackground();
     this.createBubbles();
     this.createCoinDisplay();
-    this.createShopButton();
+    this.shopBar = new ShopPopup(this);
     this.createSettingsButton();
-    this.shopPopup = new ShopPopup(this);
     this.settingsPopup = new SettingsPopup(this);
 
     for (let i = 0; i < save.fishCount; i++) {
@@ -62,12 +60,11 @@ export class AquariumScene extends Phaser.Scene {
         }
       }
 
-      // drop food if clicking in open water
+      // drop food if clicking in open water (below the top bar)
       const sandTop = this.scale.height - this.sandHeight;
-      const onShopBtn = x < 80 && y < 150;
-      const onCoinDisplay = x > this.scale.width - 130 && y < 50;
+      const onTopBar = y < 72;
       const activePellets = this.pellets.filter(p => !p.consumed).length;
-      if (!this.shopOpen && !onShopBtn && !onCoinDisplay && y < sandTop && y > 10 && this.coins >= 5 && activePellets < 3) {
+      if (!this.shopOpen && !onTopBar && y < sandTop && this.coins >= 5 && activePellets < 3) {
         this.dropFood(x, y);
       }
     });
@@ -344,63 +341,23 @@ export class AquariumScene extends Phaser.Scene {
       strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    const container = this.add.container(this.scale.width - 100, 30, [this.coinDisplayGlow, coinIcon, coinSymbol, this.coinText]);
-    container.setDepth(100);
+    const container = this.add.container(this.scale.width - 80, 32, [this.coinDisplayGlow, coinIcon, coinSymbol, this.coinText]);
+    container.setDepth(101);
     container.setName('coinDisplay');
   }
 
-  private createShopButton() {
-    const bg = this.add.graphics();
-    bg.fillStyle(0x2255aa, 0.85);
-    bg.fillRoundedRect(-28, -28, 56, 56, 12);
-    bg.lineStyle(2, 0x66aaff, 1);
-    bg.strokeRoundedRect(-28, -28, 56, 56, 12);
-
-    const icon = this.add.text(0, -2, '🛒', {
-      fontSize: '24px',
-    }).setOrigin(0.5);
-
-    const label = this.add.text(0, 38, 'Shop', {
-      fontSize: '13px',
-      color: '#88ccff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    this.shopButton = this.add.container(40, 50, [bg, icon, label]);
-    this.shopButton.setDepth(100);
-    this.shopButton.setSize(56, 56);
-    this.shopButton.setInteractive({ useHandCursor: true });
-
-    this.shopButton.on('pointerover', () => {
-      this.tweens.add({ targets: this.shopButton, scaleX: 1.1, scaleY: 1.1, duration: 100 });
-    });
-    this.shopButton.on('pointerout', () => {
-      this.tweens.add({ targets: this.shopButton, scaleX: 1, scaleY: 1, duration: 100 });
-    });
-    this.shopButton.on('pointerdown', () => {
-      this.shopPopup.show();
-    });
-  }
-
   private createSettingsButton() {
-    const bg = this.add.graphics();
-    bg.fillStyle(0x334466, 0.85);
-    bg.fillRoundedRect(-22, -22, 44, 44, 10);
-    bg.lineStyle(2, 0x5588bb, 1);
-    bg.strokeRoundedRect(-22, -22, 44, 44, 10);
-
-    const icon = this.add.text(0, -1, '⚙️', {
-      fontSize: '20px',
+    const icon = this.add.text(0, 0, '⚙️', {
+      fontSize: '18px',
     }).setOrigin(0.5);
 
-    const settingsBtn = this.add.container(40, 120, [bg, icon]);
-    settingsBtn.setDepth(100);
-    settingsBtn.setSize(44, 44);
+    const settingsBtn = this.add.container(30, 32, [icon]);
+    settingsBtn.setDepth(101);
+    settingsBtn.setSize(36, 36);
     settingsBtn.setInteractive({ useHandCursor: true });
 
     settingsBtn.on('pointerover', () => {
-      this.tweens.add({ targets: settingsBtn, scaleX: 1.1, scaleY: 1.1, duration: 100 });
+      this.tweens.add({ targets: settingsBtn, scaleX: 1.15, scaleY: 1.15, duration: 100 });
     });
     settingsBtn.on('pointerout', () => {
       this.tweens.add({ targets: settingsBtn, scaleX: 1, scaleY: 1, duration: 100 });
@@ -413,12 +370,13 @@ export class AquariumScene extends Phaser.Scene {
   private repositionUI() {
     const coinDisplay = this.children.getByName('coinDisplay') as Phaser.GameObjects.Container;
     if (coinDisplay) {
-      coinDisplay.setPosition(this.scale.width - 100, 30);
+      coinDisplay.setPosition(this.scale.width - 80, 32);
     }
   }
 
   updateCoinDisplay() {
     this.coinText.setText(`${this.coins}`);
+    this.shopBar.updatePriceColor();
     this.save();
   }
 
@@ -452,13 +410,10 @@ export class AquariumScene extends Phaser.Scene {
   spawnFish() {
     const cx = this.scale.width / 2;
     const cy = this.scale.height / 2;
+    const fish = new Fish(this, cx, cy);
+    this.fish.push(fish);
+    this.save();
     this.createPoofEffect(cx, cy);
-
-    this.time.delayedCall(200, () => {
-      const fish = new Fish(this, cx, cy);
-      this.fish.push(fish);
-      this.save();
-    });
   }
 
   private createPoofEffect(x: number, y: number) {
@@ -468,7 +423,7 @@ export class AquariumScene extends Phaser.Scene {
       const dist = Phaser.Math.Between(20, 50);
       const size = Phaser.Math.Between(4, 10);
       const circle = this.add.circle(x, y, size, 0xffffff, 0.8);
-      circle.setDepth(50);
+      circle.setDepth(9);
 
       this.tweens.add({
         targets: circle,
@@ -484,7 +439,7 @@ export class AquariumScene extends Phaser.Scene {
     }
 
     const flash = this.add.circle(x, y, 30, 0xffffff, 0.6);
-    flash.setDepth(49);
+    flash.setDepth(8);
     this.tweens.add({
       targets: flash,
       scaleX: 2,

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 
 const COLLECT_RADIUS = 28;
-const COIN_FALL_SPEED = 390; // px per second
+const COIN_FALL_SPEED = 370; // px per second
 
 export class Coin {
   private scene: AquariumScene;
@@ -30,6 +30,7 @@ export class Coin {
     this.container = scene.add.container(x, y, [this.glow, coinGfx, label]);
     this.drawCoin(coinGfx);
     this.container.setDepth(15);
+    this.container.setScale(1.4);
 
     scene.addCoin(this);
   }

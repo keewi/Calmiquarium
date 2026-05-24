@@ -20,7 +20,7 @@ export class Fish {
   private wanderTimer = 0;
   private wanderInterval: number;
   private coinTimer = 0;
-  private coinInterval = 10000;
+  private coinInterval = Phaser.Math.Between(5000, 7000);
   private tailPhase = Math.random() * Math.PI * 2;
   private facingRight = true;
 
@@ -409,6 +409,7 @@ export class Fish {
       this.coinTimer += delta;
       if (this.coinTimer >= this.coinInterval) {
         this.coinTimer = 0;
+        this.coinInterval = Phaser.Math.Between(5000, 7000);
         this.dropCoin();
       }
     }
