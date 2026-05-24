@@ -7,7 +7,7 @@ export interface SaveData {
 
 const DEFAULT_SAVE: SaveData = {
   coins: 100,
-  fishCount: 0,
+  fishCount: 2,
 };
 
 export function loadGame(): SaveData {

@@ -1,18 +1,23 @@
 import Phaser from 'phaser';
 import { Fish } from '../objects/Fish';
 import { Coin } from '../objects/Coin';
+import { FoodPellet } from '../objects/FoodPellet';
 import { ShopPopup } from '../ui/ShopPopup';
+import { SettingsPopup } from '../ui/SettingsPopup';
 import { loadGame, saveGame } from '../SaveManager';
 
 export class AquariumScene extends Phaser.Scene {
   coins = 100;
   fish: Fish[] = [];
   private droppedCoins: Coin[] = [];
+  pellets: FoodPellet[] = [];
+  private shopOpen = false;
 
   private coinText!: Phaser.GameObjects.Text;
   private coinDisplayGlow!: Phaser.GameObjects.Arc;
   private shopButton!: Phaser.GameObjects.Container;
   private shopPopup!: ShopPopup;
+  private settingsPopup!: SettingsPopup;
   private sandHeight = 60;
 
   constructor() {
@@ -27,7 +32,9 @@ export class AquariumScene extends Phaser.Scene {
     this.createBubbles();
     this.createCoinDisplay();
     this.createShopButton();
+    this.createSettingsButton();
     this.shopPopup = new ShopPopup(this);
+    this.settingsPopup = new SettingsPopup(this);
 
     for (let i = 0; i < save.fishCount; i++) {
       const x = Phaser.Math.Between(80, this.scale.width - 80);
@@ -36,16 +43,45 @@ export class AquariumScene extends Phaser.Scene {
       this.fish.push(fish);
     }
 
-    this.game.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+    const toGameCoords = (e: PointerEvent) => {
       const rect = this.game.canvas.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width * this.scale.width;
-      const py = (e.clientY - rect.top) / rect.height * this.scale.height;
+      return {
+        x: (e.clientX - rect.left) / rect.width * this.scale.width,
+        y: (e.clientY - rect.top) / rect.height * this.scale.height,
+      };
+    };
+
+    this.game.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      const { x, y } = toGameCoords(e);
+
+      // try collecting a coin first
       for (const coin of this.droppedCoins) {
-        if (coin.hitTest(px, py)) {
+        if (coin.hitTest(x, y)) {
           coin.collect();
+          return;
+        }
+      }
+
+      // drop food if clicking in open water
+      const sandTop = this.scale.height - this.sandHeight;
+      const onShopBtn = x < 80 && y < 150;
+      const onCoinDisplay = x > this.scale.width - 130 && y < 50;
+      const activePellets = this.pellets.filter(p => !p.consumed).length;
+      if (!this.shopOpen && !onShopBtn && !onCoinDisplay && y < sandTop && y > 10 && this.coins >= 5 && activePellets < 3) {
+        this.dropFood(x, y);
+      }
+    });
+
+    this.game.canvas.addEventListener('pointermove', (e: PointerEvent) => {
+      const { x, y } = toGameCoords(e);
+      let overCoin = false;
+      for (const coin of this.droppedCoins) {
+        if (coin.hitTest(x, y)) {
+          overCoin = true;
           break;
         }
       }
+      this.game.canvas.style.cursor = overCoin ? 'pointer' : 'default';
     });
 
     this.scale.on('resize', () => {
@@ -55,6 +91,35 @@ export class AquariumScene extends Phaser.Scene {
 
   addCoin(coin: Coin) {
     this.droppedCoins.push(coin);
+  }
+
+  setShopOpen(open: boolean) {
+    this.shopOpen = open;
+  }
+
+  private dropFood(x: number, y: number) {
+    this.coins -= 5;
+    this.updateCoinDisplay();
+
+    // sparkle burst at click point
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const dist = Phaser.Math.Between(8, 18);
+      const spark = this.add.circle(x, y, Phaser.Math.Between(1, 3), 0xffffaa, 0.9);
+      spark.setDepth(20);
+      this.tweens.add({
+        targets: spark,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        duration: 300,
+        ease: 'Quad.easeOut',
+        onComplete: () => spark.destroy(),
+      });
+    }
+
+    const pellet = new FoodPellet(this, x, y);
+    this.pellets.push(pellet);
   }
 
   private createBackground() {
@@ -213,6 +278,33 @@ export class AquariumScene extends Phaser.Scene {
     });
   }
 
+  private createSettingsButton() {
+    const bg = this.add.graphics();
+    bg.fillStyle(0x334466, 0.85);
+    bg.fillRoundedRect(-22, -22, 44, 44, 10);
+    bg.lineStyle(2, 0x5588bb, 1);
+    bg.strokeRoundedRect(-22, -22, 44, 44, 10);
+
+    const icon = this.add.text(0, -1, '⚙️', {
+      fontSize: '20px',
+    }).setOrigin(0.5);
+
+    const settingsBtn = this.add.container(40, 120, [bg, icon]);
+    settingsBtn.setDepth(100);
+    settingsBtn.setSize(44, 44);
+    settingsBtn.setInteractive({ useHandCursor: true });
+
+    settingsBtn.on('pointerover', () => {
+      this.tweens.add({ targets: settingsBtn, scaleX: 1.1, scaleY: 1.1, duration: 100 });
+    });
+    settingsBtn.on('pointerout', () => {
+      this.tweens.add({ targets: settingsBtn, scaleX: 1, scaleY: 1, duration: 100 });
+    });
+    settingsBtn.on('pointerdown', () => {
+      this.settingsPopup.show();
+    });
+  }
+
   private repositionUI() {
     const coinDisplay = this.children.getByName('coinDisplay') as Phaser.GameObjects.Container;
     if (coinDisplay) {
@@ -298,6 +390,14 @@ export class AquariumScene extends Phaser.Scene {
     for (const fish of this.fish) {
       fish.update(delta);
     }
+    for (const coin of this.droppedCoins) {
+      coin.update(delta);
+    }
     this.droppedCoins = this.droppedCoins.filter(c => !c.collected);
+
+    for (const pellet of this.pellets) {
+      pellet.update(delta);
+    }
+    this.pellets = this.pellets.filter(p => !p.consumed);
   }
 }

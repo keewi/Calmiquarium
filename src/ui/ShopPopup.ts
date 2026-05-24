@@ -136,6 +136,7 @@ export class ShopPopup {
   show() {
     if (this.visible) return;
     this.visible = true;
+    this.scene.setShopOpen(true);
     this.overlay.setVisible(true);
     this.container.setVisible(true);
     this.container.setScale(0.8);
@@ -153,6 +154,7 @@ export class ShopPopup {
   hide() {
     if (!this.visible) return;
     this.visible = false;
+    this.scene.setShopOpen(false);
     this.scene.tweens.add({
       targets: this.container,
       scaleX: 0.8,
