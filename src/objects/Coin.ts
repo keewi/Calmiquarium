@@ -1,16 +1,17 @@
 import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 
+const COLLECT_RADIUS = 28;
+
 export class Coin {
   private scene: AquariumScene;
-  private container: Phaser.GameObjects.Container;
+  container: Phaser.GameObjects.Container;
   private glow: Phaser.GameObjects.Arc;
-  private collected = false;
-  private sandY: number;
+  collected = false;
 
   constructor(scene: AquariumScene, x: number, y: number) {
     this.scene = scene;
-    this.sandY = scene.scale.height - 60 - 10;
+    const sandY = scene.scale.height - 60 - 10;
 
     this.glow = scene.add.circle(0, 0, 32, 0xffffff, 0);
 
@@ -22,25 +23,27 @@ export class Coin {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const hitZone = scene.add.rectangle(0, 0, 48, 48, 0xffffff, 0);
-
-    this.container = scene.add.container(x, y, [hitZone, this.glow, body, symbol]);
+    this.container = scene.add.container(x, y, [this.glow, body, symbol]);
     this.container.setDepth(15);
-    this.container.setSize(48, 48);
-    this.container.setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(-24, -24, 48, 48), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
-
-    this.container.on('pointerdown', () => this.collect());
 
     scene.tweens.add({
       targets: this.container,
-      y: this.sandY,
+      y: sandY,
       duration: Phaser.Math.Between(1500, 2500),
       ease: 'Quad.easeIn',
-      onComplete: () => {},
     });
+
+    scene.addCoin(this);
   }
 
-  private collect() {
+  hitTest(px: number, py: number): boolean {
+    if (this.collected) return false;
+    const dx = px - this.container.x;
+    const dy = py - this.container.y;
+    return dx * dx + dy * dy <= COLLECT_RADIUS * COLLECT_RADIUS;
+  }
+
+  collect() {
     if (this.collected) return;
     this.collected = true;
 
@@ -69,9 +72,5 @@ export class Coin {
         });
       },
     });
-  }
-
-  get isDestroyed() {
-    return this.collected;
   }
 }

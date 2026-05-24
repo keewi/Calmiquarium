@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { Fish } from '../objects/Fish';
+import { Coin } from '../objects/Coin';
 import { ShopPopup } from '../ui/ShopPopup';
 import { loadGame, saveGame } from '../SaveManager';
 
 export class AquariumScene extends Phaser.Scene {
   coins = 100;
   fish: Fish[] = [];
+  private droppedCoins: Coin[] = [];
 
   private coinText!: Phaser.GameObjects.Text;
   private coinDisplayGlow!: Phaser.GameObjects.Arc;
@@ -34,9 +36,25 @@ export class AquariumScene extends Phaser.Scene {
       this.fish.push(fish);
     }
 
+    this.game.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      const rect = this.game.canvas.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width * this.scale.width;
+      const py = (e.clientY - rect.top) / rect.height * this.scale.height;
+      for (const coin of this.droppedCoins) {
+        if (coin.hitTest(px, py)) {
+          coin.collect();
+          break;
+        }
+      }
+    });
+
     this.scale.on('resize', () => {
       this.repositionUI();
     });
+  }
+
+  addCoin(coin: Coin) {
+    this.droppedCoins.push(coin);
   }
 
   private createBackground() {
@@ -280,5 +298,6 @@ export class AquariumScene extends Phaser.Scene {
     for (const fish of this.fish) {
       fish.update(delta);
     }
+    this.droppedCoins = this.droppedCoins.filter(c => !c.collected);
   }
 }
