@@ -2,11 +2,12 @@ import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 
 const GOLDFISH_COST = 50;
+const EGG_COSTS = [500, 750, 1000]; // cost for each egg stage
 const BAR_HEIGHT = 100;
 const SLOT_RADIUS = 24;
 const SLOT_Y = 38; // center y of slots within bar
 const PRICE_Y = 76; // y for price tags
-const NUM_SLOTS = 7; // total item slots (only first is active for now)
+const NUM_SLOTS = 7; // total item slots
 const SLOT_START_X = 75;
 const SLOT_SPACING = 68;
 
@@ -15,6 +16,15 @@ export class ShopPopup {
   private container: Phaser.GameObjects.Container;
   private priceText!: Phaser.GameObjects.Text;
   private slotBg!: Phaser.GameObjects.Graphics;
+  private coinText!: Phaser.GameObjects.Text;
+
+  // egg slot elements
+  private eggSlotBg!: Phaser.GameObjects.Graphics;
+  private eggIcon!: Phaser.GameObjects.Graphics;
+  private eggPriceBg!: Phaser.GameObjects.Graphics;
+  private eggPriceText!: Phaser.GameObjects.Text;
+  private eggHitZone!: Phaser.GameObjects.Arc;
+  private eggSlotX = 0;
 
   constructor(scene: AquariumScene) {
     this.scene = scene;
@@ -61,6 +71,36 @@ export class ShopPopup {
         });
         hitZone.on('pointerdown', () => this.handleBuy());
         children.push(hitZone);
+      } else if (i === 1) {
+        // egg slot
+        this.eggSlotX = sx;
+        this.eggSlotBg = slotGfx;
+
+        // egg icon
+        this.eggIcon = scene.add.graphics();
+        children.push(slotGfx, this.eggIcon);
+
+        // egg price tag
+        this.eggPriceBg = scene.add.graphics();
+        this.eggPriceText = scene.add.text(sx, PRICE_Y, '', {
+          fontSize: '11px', color: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold',
+        }).setOrigin(0.5);
+        children.push(this.eggPriceBg, this.eggPriceText);
+
+        // egg hit zone
+        this.eggHitZone = scene.add.circle(sx, SLOT_Y, SLOT_RADIUS + 4);
+        this.eggHitZone.setInteractive({ useHandCursor: true });
+        this.eggHitZone.on('pointerover', () => {
+          if (scene.eggStage < 3) this.drawSlot(this.eggSlotBg, sx, SLOT_Y, true, true);
+        });
+        this.eggHitZone.on('pointerout', () => {
+          if (scene.eggStage < 3) this.drawSlot(this.eggSlotBg, sx, SLOT_Y, false, true);
+        });
+        this.eggHitZone.on('pointerdown', () => this.handleBuyEgg());
+        children.push(this.eggHitZone);
+
+        // initial render
+        this.updateEggSlot();
       } else {
         // empty/locked slot
         this.drawSlot(slotGfx, sx, SLOT_Y, false, false);
@@ -121,7 +161,137 @@ export class ShopPopup {
     });
   }
 
-  private coinText!: Phaser.GameObjects.Text;
+  updateEggSlot() {
+    const sx = this.eggSlotX;
+    const stage = this.scene.eggStage;
+
+    if (stage >= 3) {
+      // completed — show disabled/gold slot with checkmark
+      this.drawSlot(this.eggSlotBg, sx, SLOT_Y, false, false);
+      this.eggIcon.clear();
+      this.drawEggIcon(this.eggIcon, sx, SLOT_Y, 1.0);
+      // gold checkmark overlay
+      this.eggIcon.fillStyle(0x44cc44, 0.9);
+      this.eggIcon.fillCircle(sx + 10, SLOT_Y + 10, 7);
+      this.eggIcon.lineStyle(2, 0xffffff, 1);
+      this.eggIcon.beginPath();
+      this.eggIcon.moveTo(sx + 6, SLOT_Y + 10);
+      this.eggIcon.lineTo(sx + 9, SLOT_Y + 13);
+      this.eggIcon.lineTo(sx + 14, SLOT_Y + 7);
+      this.eggIcon.strokePath();
+      // price tag shows "DONE"
+      this.eggPriceBg.clear();
+      this.eggPriceBg.fillStyle(0x338833, 0.9);
+      this.eggPriceBg.fillRoundedRect(sx - 26, PRICE_Y - 8, 52, 16, 5);
+      this.eggPriceText.setText('DONE');
+      this.eggPriceText.setColor('#ffffff');
+      this.eggHitZone.disableInteractive();
+    } else {
+      // active egg slot
+      this.drawSlot(this.eggSlotBg, sx, SLOT_Y, false, true);
+      this.eggIcon.clear();
+      // show egg based on how many pieces bought: stage 0=30%, 1=60%, 2=100%
+      const visibility = [0.30, 0.60, 1.0][stage];
+      this.drawEggIcon(this.eggIcon, sx, SLOT_Y, visibility);
+      // price tag
+      const cost = EGG_COSTS[stage];
+      this.eggPriceBg.clear();
+      this.eggPriceBg.fillStyle(0x5533aa, 0.9);
+      this.eggPriceBg.fillRoundedRect(sx - 26, PRICE_Y - 8, 52, 16, 5);
+      this.eggPriceText.setText(`$${cost}`);
+      const canAfford = this.scene.coins >= cost;
+      this.eggPriceText.setColor(canAfford ? '#ffffff' : '#ff4444');
+    }
+  }
+
+  private drawEggIcon(g: Phaser.GameObjects.Graphics, x: number, y: number, visibility: number) {
+    // egg shape: full egg is an ellipse roughly 18w x 24h, pointed at top
+    // visibility clips from the bottom: 0.3 = bottom 30%, 0.6 = bottom 60%, 1.0 = full
+    const eggW = 16;
+    const eggH = 22;
+    const eggCenterY = y; // center of the egg
+
+    // use clipping via drawing partial shapes
+    // draw from bottom up to the visibility line
+    const fullTop = eggCenterY - eggH / 2;
+    const fullBottom = eggCenterY + eggH / 2;
+    const visibleTop = fullBottom - (fullBottom - fullTop) * visibility;
+
+    // main egg body (cream/white)
+    g.fillStyle(0xfff8e8, 0.95);
+    // draw the egg as segments, only below visibleTop
+    const steps = 32;
+    g.beginPath();
+    let started = false;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const angle = t * Math.PI * 2;
+      // egg shape: wider at bottom, narrower at top
+      const rx = eggW / 2;
+      const ry = eggH / 2;
+      const px = x + rx * Math.sin(angle);
+      // make it egg-shaped: compress the top
+      const yFactor = 1 - 0.2 * Math.max(0, -Math.cos(angle));
+      const py = eggCenterY - ry * Math.cos(angle) * yFactor;
+
+      if (py >= visibleTop) {
+        if (!started) {
+          g.moveTo(px, Math.max(py, visibleTop));
+          started = true;
+        } else {
+          g.lineTo(px, py);
+        }
+      }
+    }
+    g.closePath();
+    g.fillPath();
+
+    // flat cut line at the top of visible portion (if partial)
+    if (visibility < 1.0) {
+      g.lineStyle(1.5, 0xddccaa, 0.8);
+      // find the width at the cut line
+      const cutY = visibleTop;
+      const relY = (cutY - eggCenterY) / (eggH / 2);
+      const cutWidth = eggW / 2 * Math.sqrt(Math.max(0, 1 - relY * relY));
+      g.beginPath();
+      g.moveTo(x - cutWidth, cutY);
+      // jagged edge for cracked look
+      const jagSteps = 8;
+      for (let j = 0; j <= jagSteps; j++) {
+        const jt = j / jagSteps;
+        const jx = x - cutWidth + jt * cutWidth * 2;
+        const jy = cutY + (j % 2 === 0 ? -1.5 : 1.5);
+        g.lineTo(jx, jy);
+      }
+      g.strokePath();
+    }
+
+    // specular highlight
+    if (visibility > 0.5) {
+      g.fillStyle(0xffffff, 0.3);
+      const hlY = Math.max(eggCenterY - 4, visibleTop + 3);
+      g.fillEllipse(x - 3, hlY, 6, 8 * visibility);
+    }
+
+    // subtle shadow on right
+    g.fillStyle(0xddcc99, 0.3);
+    const shY = Math.max(eggCenterY + 2, visibleTop + 2);
+    g.fillEllipse(x + 4, shY, 5, 8 * visibility);
+
+    // spots/speckles on the egg
+    if (visibility >= 0.3) {
+      g.fillStyle(0xddccaa, 0.4);
+      const spotY1 = eggCenterY + 5;
+      if (spotY1 >= visibleTop) g.fillCircle(x - 3, spotY1, 1.5);
+      const spotY2 = eggCenterY + 2;
+      if (spotY2 >= visibleTop) g.fillCircle(x + 4, spotY2, 1);
+    }
+    if (visibility >= 0.6) {
+      g.fillStyle(0xddccaa, 0.3);
+      const spotY3 = eggCenterY - 2;
+      if (spotY3 >= visibleTop) g.fillCircle(x - 2, spotY3, 1.2);
+    }
+  }
 
   private drawBarBg(g: Phaser.GameObjects.Graphics, width: number) {
     // main wooden plank
@@ -247,6 +417,7 @@ export class ShopPopup {
   updatePriceColor() {
     const canAfford = this.scene.coins >= GOLDFISH_COST;
     this.priceText.setColor(canAfford ? '#ffffff' : '#ff4444');
+    this.updateEggSlot();
   }
 
   updateCoinText() {
@@ -258,21 +429,46 @@ export class ShopPopup {
 
   private handleBuy() {
     if (this.scene.coins < GOLDFISH_COST) {
-      const origX = this.priceText.x;
-      this.scene.tweens.add({
-        targets: this.priceText,
-        x: origX + 4,
-        duration: 50,
-        yoyo: true,
-        repeat: 3,
-        onComplete: () => this.priceText.setX(origX),
-      });
+      this.shakeText(this.priceText);
       return;
     }
 
     this.scene.coins -= GOLDFISH_COST;
     this.scene.updateCoinDisplay();
     this.scene.spawnFish();
+  }
+
+  private handleBuyEgg() {
+    const stage = this.scene.eggStage;
+    if (stage >= 3) return;
+
+    const cost = EGG_COSTS[stage];
+    if (this.scene.coins < cost) {
+      this.shakeText(this.eggPriceText);
+      return;
+    }
+
+    this.scene.coins -= cost;
+    this.scene.eggStage++;
+    this.scene.updateCoinDisplay();
+    this.updateEggSlot();
+
+    if (this.scene.eggStage >= 3) {
+      // player wins!
+      this.scene.showWinPopup();
+    }
+  }
+
+  private shakeText(text: Phaser.GameObjects.Text) {
+    const origX = text.x;
+    this.scene.tweens.add({
+      targets: text,
+      x: origX + 4,
+      duration: 50,
+      yoyo: true,
+      repeat: 3,
+      onComplete: () => text.setX(origX),
+    });
   }
 
   static get BAR_HEIGHT() { return BAR_HEIGHT; }

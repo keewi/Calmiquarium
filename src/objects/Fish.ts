@@ -1,11 +1,29 @@
 import Phaser from 'phaser';
 import { AquariumScene } from '../scenes/AquariumScene';
 import { Coin } from './Coin';
+import type { CoinType } from './Coin';
 
 const MAX_HUNGER = 45;          // seconds when fully fed
 const HUNGRY_THRESHOLD = 25;    // still orange, chases food, still drops coins
 const STARVING_THRESHOLD = 15;  // turns green, stops dropping coins
 const DESPERATE_THRESHOLD = 4;  // turns purple, last chance
+
+// growth constants
+const BABY_TO_MED = 3;            // pellets eaten to go baby → medium
+const MED_TO_LARGE = 6;           // pellets eaten to go medium → large
+const LARGE_TO_KING_POINTS = 75;  // growth points accrued while large
+const DROP_INTERVAL_MS = 5500;    // coin drop interval for medium/large/king
+
+// visual scale per stage: baby is small, king is big
+const STAGE_SCALE: number[] = [0.9, 1.4, 1.7, 2.1];
+
+export const GrowthStage = {
+  Baby: 0,
+  Medium: 1,
+  Large: 2,
+  King: 3,
+} as const;
+export type GrowthStage = (typeof GrowthStage)[keyof typeof GrowthStage];
 
 export class Fish {
   private scene: AquariumScene;
@@ -20,7 +38,7 @@ export class Fish {
   private wanderTimer = 0;
   private wanderInterval: number;
   private coinTimer = 0;
-  private coinInterval = Phaser.Math.Between(5000, 7000);
+  private coinInterval = DROP_INTERVAL_MS;
   private tailPhase = Math.random() * Math.PI * 2;
   private lastTailAngle = -999;
   private facingRight = true;
@@ -34,22 +52,31 @@ export class Fish {
   dead = false;
   private dying = false;
 
-  constructor(scene: AquariumScene, x: number, y: number) {
+  // growth system
+  growthStage: GrowthStage = GrowthStage.Baby;
+  growthPoints = 0;
+  private readyToKing = false; // large guppy has reached LARGE_TO_KING_POINTS, transforms on next feed
+
+  constructor(scene: AquariumScene, x: number, y: number, stage: GrowthStage = GrowthStage.Baby, points = 0) {
     this.scene = scene;
+    this.growthStage = stage;
+    this.growthPoints = points;
+    this.readyToKing = stage === GrowthStage.Large && points >= LARGE_TO_KING_POINTS;
 
     this.tailGfx = scene.add.graphics();
     this.bodyGfx = scene.add.graphics();
     this.drawBody();
     this.drawTail(0);
 
+    const scale = STAGE_SCALE[this.growthStage];
     this.container = scene.add.container(x, y, [this.tailGfx, this.bodyGfx]);
     this.container.setDepth(10);
     this.container.setScale(0);
 
     scene.tweens.add({
       targets: this.container,
-      scaleX: 1.4,
-      scaleY: 1.4,
+      scaleX: scale,
+      scaleY: scale,
       duration: 400,
       ease: 'Back.easeOut',
     });
@@ -75,7 +102,94 @@ export class Fish {
   private getHungerTint(): number | null {
     if (this.isDesperate) return 0x9944cc;  // purple
     if (this.isStarving) return 0x44bb44;   // green
-    return null; // hungry but still orange, or fully fed
+    return null;
+  }
+
+  // --- growth helpers ---
+
+  private getDropType(): CoinType | null {
+    switch (this.growthStage) {
+      case GrowthStage.Baby: return null;       // babies don't drop
+      case GrowthStage.Medium: return 'silver';
+      case GrowthStage.Large: return 'gold';
+      case GrowthStage.King: return 'diamond';
+    }
+  }
+
+  private onEatFood() {
+    this.growthPoints++;
+
+    switch (this.growthStage) {
+      case GrowthStage.Baby:
+        if (this.growthPoints >= BABY_TO_MED) {
+          this.stageUp(GrowthStage.Medium);
+        }
+        break;
+      case GrowthStage.Medium:
+        if (this.growthPoints >= MED_TO_LARGE) {
+          this.stageUp(GrowthStage.Large);
+        }
+        break;
+      case GrowthStage.Large:
+        if (this.readyToKing) {
+          // transform on this feed
+          this.stageUp(GrowthStage.King);
+        } else if (this.growthPoints >= LARGE_TO_KING_POINTS) {
+          this.readyToKing = true;
+        }
+        break;
+      case GrowthStage.King:
+        // terminal — no further growth
+        break;
+    }
+  }
+
+  private stageUp(newStage: GrowthStage) {
+    this.growthStage = newStage;
+    this.growthPoints = 0;
+    this.readyToKing = false;
+
+    // redraw at new size with a little pop animation
+    const scale = STAGE_SCALE[newStage];
+    this.drawBody();
+    this.drawTail(0);
+    this.lastTailAngle = -999;
+
+    // pop effect
+    this.scene.tweens.add({
+      targets: this.container,
+      scaleX: (this.facingRight ? 1 : -1) * (scale + 0.3),
+      scaleY: scale + 0.3,
+      duration: 200,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: this.container,
+          scaleX: (this.facingRight ? 1 : -1) * scale,
+          scaleY: scale,
+          duration: 200,
+          ease: 'Quad.easeIn',
+        });
+      },
+    });
+
+    // sparkle effect at fish location
+    this.scene.createPoofEffect(this.container.x, this.container.y);
+    this.scene.save();
+  }
+
+  // --- drawing ---
+
+  private getKingTint(): { bodyColor: number; darkColor: number; bellyColor: number; finColor: number; finHColor: number; sideFColor: number } | null {
+    if (this.growthStage !== GrowthStage.King) return null;
+    return {
+      bodyColor: 0xff4500,    // deep red-orange
+      darkColor: 0xcc3300,
+      bellyColor: 0xffaa33,
+      finColor: 0xff3300,
+      finHColor: 0xff7744,
+      sideFColor: 0xff5522,
+    };
   }
 
   private drawBody() {
@@ -83,6 +197,7 @@ export class Fish {
     g.clear();
 
     const tint = this.getHungerTint();
+    const kingColors = this.getKingTint();
 
     // color helpers — blend base color toward tint
     const baseOrange = 0xff8c00;
@@ -92,41 +207,28 @@ export class Fish {
     const finHighlight = 0xffa848;
     const sideFinColor = 0xff9030;
 
-    const body = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(baseOrange),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 60
-    ) : null;
-    const bodyColor = body ? Phaser.Display.Color.GetColor(body.r, body.g, body.b) : baseOrange;
+    let bodyColor = kingColors ? kingColors.bodyColor : baseOrange;
+    let darkColor = kingColors ? kingColors.darkColor : darkOrange;
+    let bellyColor = kingColors ? kingColors.bellyColor : bellyYellow;
+    let finColor = kingColors ? kingColors.finColor : finOrange;
+    let finHColor = kingColors ? kingColors.finHColor : finHighlight;
+    let sideFColor = kingColors ? kingColors.sideFColor : sideFinColor;
 
-    const dark = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(darkOrange),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 60
-    ) : null;
-    const darkColor = dark ? Phaser.Display.Color.GetColor(dark.r, dark.g, dark.b) : darkOrange;
-
-    const belly = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(bellyYellow),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 40
-    ) : null;
-    const bellyColor = belly ? Phaser.Display.Color.GetColor(belly.r, belly.g, belly.b) : bellyYellow;
-
-    const fin = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(finOrange),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 60
-    ) : null;
-    const finColor = fin ? Phaser.Display.Color.GetColor(fin.r, fin.g, fin.b) : finOrange;
-
-    const finH = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(finHighlight),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 40
-    ) : null;
-    const finHColor = finH ? Phaser.Display.Color.GetColor(finH.r, finH.g, finH.b) : finHighlight;
-
-    const sideF = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(sideFinColor),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 60
-    ) : null;
-    const sideFColor = sideF ? Phaser.Display.Color.GetColor(sideF.r, sideF.g, sideF.b) : sideFinColor;
+    if (tint) {
+      const blend = (base: number) => {
+        const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(base),
+          Phaser.Display.Color.IntegerToColor(tint), 100, 60
+        );
+        return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
+      };
+      bodyColor = blend(bodyColor);
+      darkColor = blend(darkColor);
+      bellyColor = blend(bellyColor);
+      finColor = blend(finColor);
+      finHColor = blend(finHColor);
+      sideFColor = blend(sideFColor);
+    }
 
     // main body
     g.fillStyle(bodyColor, 1);
@@ -161,6 +263,11 @@ export class Fish {
     g.closePath();
     g.fillPath();
 
+    // king crown
+    if (this.growthStage === GrowthStage.King) {
+      this.drawCrown(g);
+    }
+
     // pectoral fin (side fin)
     g.fillStyle(sideFColor, 0.7);
     g.fillEllipse(4, 8, 10, 6);
@@ -192,26 +299,63 @@ export class Fish {
     g.fillCircle(14, 4, 4);
   }
 
+  private drawCrown(g: Phaser.GameObjects.Graphics) {
+    // small crown sitting on top of the fish's head
+    const cx = 6;
+    const cy = -14;
+    const w = 14;
+    const h = 10;
+
+    // crown body — gold
+    g.fillStyle(0xffd700, 1);
+    g.beginPath();
+    g.moveTo(cx - w / 2, cy);
+    g.lineTo(cx - w / 2, cy - h * 0.5);
+    g.lineTo(cx - w * 0.25, cy - h * 0.3);
+    g.lineTo(cx, cy - h);
+    g.lineTo(cx + w * 0.25, cy - h * 0.3);
+    g.lineTo(cx + w / 2, cy - h * 0.5);
+    g.lineTo(cx + w / 2, cy);
+    g.closePath();
+    g.fillPath();
+
+    // crown rim
+    g.fillStyle(0xdaa520, 1);
+    g.fillRect(cx - w / 2, cy - 1, w, 3);
+
+    // jewel on center point
+    g.fillStyle(0xff0000, 1);
+    g.fillCircle(cx, cy - h * 0.7, 1.5);
+
+    // side jewels
+    g.fillStyle(0x4444ff, 1);
+    g.fillCircle(cx - w * 0.35, cy - h * 0.35, 1);
+    g.fillCircle(cx + w * 0.35, cy - h * 0.35, 1);
+  }
+
   private drawTail(angle: number) {
     const g = this.tailGfx;
     g.clear();
 
     const tint = this.getHungerTint();
 
-    const baseTail = 0xffa040;
-    const baseHighlight = 0xffcc66;
+    const baseTail = this.growthStage === GrowthStage.King ? 0xff5520 : 0xffa040;
+    const baseHighlight = this.growthStage === GrowthStage.King ? 0xff8844 : 0xffcc66;
 
-    const tail = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(baseTail),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 60
-    ) : null;
-    const tailColor = tail ? Phaser.Display.Color.GetColor(tail.r, tail.g, tail.b) : baseTail;
+    let tailColor = baseTail;
+    let hlColor = baseHighlight;
 
-    const hl = tint ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.IntegerToColor(baseHighlight),
-      Phaser.Display.Color.IntegerToColor(tint), 100, 40
-    ) : null;
-    const hlColor = hl ? Phaser.Display.Color.GetColor(hl.r, hl.g, hl.b) : baseHighlight;
+    if (tint) {
+      const blend = (base: number) => {
+        const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.IntegerToColor(base),
+          Phaser.Display.Color.IntegerToColor(tint), 100, 60
+        );
+        return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
+      };
+      tailColor = blend(baseTail);
+      hlColor = blend(baseHighlight);
+    }
 
     const cx = -19;
     const len = 15;
@@ -355,6 +499,7 @@ export class Fish {
       if (dist < 35) {
         p.consume();
         this.hungerTimer = MAX_HUNGER;
+        this.onEatFood();
         this.drawBody();
         return true;
       }
@@ -390,6 +535,9 @@ export class Fish {
   update(delta: number) {
     if (this.dead) return;
 
+    // always try to eat nearby food (triggers growth regardless of hunger mode)
+    this.tryEatPellet();
+
     // hunger countdown (only if enabled)
     if (this.scene.hungerEnabled) {
       this.hungerTimer -= delta / 1000;
@@ -398,40 +546,32 @@ export class Fish {
         this.die();
         return;
       }
-
-      // try to eat nearby pellets when hungry
-      if (this.isHungry) {
-        this.tryEatPellet();
-      }
     } else {
-      // keep hunger full when disabled
+      // keep hunger full when disabled — no timers, no color changes
       this.hungerTimer = MAX_HUNGER;
     }
 
-    // drop coins when not starving (hungry fish still drop coins)
-    if (!this.isStarving) {
+    // drop coins (babies don't drop; starving fish stop dropping when hunger is enabled)
+    const dropType = this.getDropType();
+    if (dropType && (!this.scene.hungerEnabled || !this.isStarving)) {
       this.coinTimer += delta;
       if (this.coinTimer >= this.coinInterval) {
         this.coinTimer = 0;
-        this.coinInterval = Phaser.Math.Between(5000, 7000);
-        this.dropCoin();
+        this.coinInterval = Phaser.Math.Between(5000, 6000);
+        this.dropCoin(dropType);
       }
     }
 
-    // chase food when hungry, otherwise wander
-    if (this.isHungry) {
-      const pelletPos = this.findNearestPellet();
-      if (pelletPos) {
-        this.targetX = pelletPos.x;
-        this.targetY = pelletPos.y;
+    // chase food if available, otherwise wander
+    const pelletPos = this.findNearestPellet();
+    if (pelletPos) {
+      this.targetX = pelletPos.x;
+      this.targetY = pelletPos.y;
+      // speed depends on hunger urgency when hunger is enabled
+      if (this.scene.hungerEnabled && this.isHungry) {
         this.baseSpeed = this.isDesperate ? 4.0 : this.isStarving ? 3.0 : 2.2;
       } else {
-        // wander normally even when hungry (no food available)
-        this.wanderTimer += delta;
-        if (this.wanderTimer >= this.wanderInterval) {
-          this.wanderTimer = 0;
-          this.pickNewTarget();
-        }
+        this.baseSpeed = 2.0; // casual swim toward food
       }
     } else {
       this.wanderTimer += delta;
@@ -462,7 +602,8 @@ export class Fish {
       this.speed = Phaser.Math.Linear(this.speed, 0, 0.03);
     }
 
-    this.container.setScale(this.facingRight ? 1.4 : -1.4, 1.4);
+    const scale = STAGE_SCALE[this.growthStage];
+    this.container.setScale(this.facingRight ? scale : -scale, scale);
 
     // gentle body tilt toward movement direction
     const tiltAngle = (dy / (dist || 1)) * 8;
@@ -487,7 +628,7 @@ export class Fish {
     }
   }
 
-  private dropCoin() {
-    new Coin(this.scene, this.container.x, this.container.y + 12);
+  private dropCoin(type: CoinType) {
+    new Coin(this.scene, this.container.x, this.container.y + 12, type);
   }
 }

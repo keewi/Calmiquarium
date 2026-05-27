@@ -8,6 +8,7 @@ import { loadGame, saveGame } from '../SaveManager';
 
 export class AquariumScene extends Phaser.Scene {
   coins = 100;
+  eggStage = 0; // 0=not started, 1/2=pieces bought, 3=complete
   fish: Fish[] = [];
   private droppedCoins: Coin[] = [];
   pellets: FoodPellet[] = [];
@@ -27,6 +28,7 @@ export class AquariumScene extends Phaser.Scene {
   create() {
     const save = loadGame();
     this.coins = save.coins;
+    this.eggStage = save.eggStage;
 
     this.createBackground();
     this.settingsPopup = new SettingsPopup(this);
@@ -36,7 +38,10 @@ export class AquariumScene extends Phaser.Scene {
     for (let i = 0; i < save.fishCount; i++) {
       const x = Phaser.Math.Between(80, this.scale.width - 80);
       const y = Phaser.Math.Between(80, this.scale.height - this.sandHeight - 80);
-      const fish = new Fish(this, x, y);
+      const fd = save.fishData[i];
+      const fish = fd
+        ? new Fish(this, x, y, fd.stage as 0 | 1 | 2 | 3, fd.growthPoints)
+        : new Fish(this, x, y);
       this.fish.push(fish);
     }
 
@@ -282,15 +287,6 @@ export class AquariumScene extends Phaser.Scene {
     ctx.closePath();
     ctx.fill();
 
-    // soft fade below terrain edge
-    for (let ex = 0; ex <= width; ex++) {
-      const edgeY = terrainScreenY[ex];
-      const fadeGrad = ctx.createLinearGradient(0, edgeY, 0, edgeY + 10);
-      fadeGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
-      fadeGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = fadeGrad;
-      ctx.fillRect(ex, edgeY, 1, 10);
-    }
     ctx.globalCompositeOperation = 'source-over';
 
     // restore water above the cut
@@ -653,7 +649,95 @@ export class AquariumScene extends Phaser.Scene {
   }
 
   save() {
-    saveGame({ coins: this.coins, fishCount: this.fish.length });
+    saveGame({
+      coins: this.coins,
+      fishCount: this.fish.length,
+      fishData: this.fish.map(f => ({ stage: f.growthStage, growthPoints: f.growthPoints })),
+      eggStage: this.eggStage,
+    });
+  }
+
+  showWinPopup() {
+    const w = this.scale.width;
+    const h = this.scale.height;
+
+    // Semi-transparent overlay
+    const overlay = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.5);
+    overlay.setDepth(100);
+
+    // Popup card
+    const cardW = 320;
+    const cardH = 200;
+    const card = this.add.graphics();
+    card.setDepth(101);
+    // Rounded rect background
+    card.fillStyle(0xffffff, 1);
+    card.fillRoundedRect(w / 2 - cardW / 2, h / 2 - cardH / 2, cardW, cardH, 16);
+    // Gold border
+    card.lineStyle(3, 0xf5c842, 1);
+    card.strokeRoundedRect(w / 2 - cardW / 2, h / 2 - cardH / 2, cardW, cardH, 16);
+
+    // "You Win!" title
+    const title = this.add.text(w / 2, h / 2 - 50, '🥚 You Win! 🎉', {
+      fontSize: '32px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#f5a623',
+      fontStyle: 'bold',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(102);
+
+    // Subtitle
+    const subtitle = this.add.text(w / 2, h / 2, 'The egg is complete!', {
+      fontSize: '18px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#555555',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(102);
+
+    // Dismiss button
+    const btnW = 140;
+    const btnH = 44;
+    const btnY = h / 2 + 55;
+    const btn = this.add.graphics();
+    btn.setDepth(102);
+    btn.fillStyle(0x4ecdc4, 1);
+    btn.fillRoundedRect(w / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 10);
+
+    const btnText = this.add.text(w / 2, btnY, 'Continue', {
+      fontSize: '20px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(103);
+
+    // Hit zone for button
+    const hitZone = this.add.rectangle(w / 2, btnY, btnW, btnH, 0x000000, 0)
+      .setDepth(104)
+      .setInteractive({ useHandCursor: true });
+
+    hitZone.on('pointerover', () => {
+      btn.clear();
+      btn.fillStyle(0x3dbdb5, 1);
+      btn.fillRoundedRect(w / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 10);
+    });
+    hitZone.on('pointerout', () => {
+      btn.clear();
+      btn.fillStyle(0x4ecdc4, 1);
+      btn.fillRoundedRect(w / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 10);
+    });
+
+    hitZone.on('pointerdown', () => {
+      overlay.destroy();
+      card.destroy();
+      title.destroy();
+      subtitle.destroy();
+      btn.destroy();
+      btnText.destroy();
+      hitZone.destroy();
+    });
+
+    // Block clicks from reaching the game behind the overlay
+    overlay.setInteractive();
   }
 
   flashCoinDisplay(onPeak: () => void) {
@@ -688,7 +772,7 @@ export class AquariumScene extends Phaser.Scene {
     this.createPoofEffect(cx, cy);
   }
 
-  private createPoofEffect(x: number, y: number) {
+  createPoofEffect(x: number, y: number) {
     const particles = 12;
     for (let i = 0; i < particles; i++) {
       const angle = (i / particles) * Math.PI * 2;
