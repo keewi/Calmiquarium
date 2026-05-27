@@ -22,6 +22,7 @@ export class Fish {
   private coinTimer = 0;
   private coinInterval = Phaser.Math.Between(5000, 7000);
   private tailPhase = Math.random() * Math.PI * 2;
+  private lastTailAngle = -999;
   private facingRight = true;
 
   private margin = 60;
@@ -29,6 +30,7 @@ export class Fish {
 
   // hunger system
   private hungerTimer = MAX_HUNGER;
+  private lastHungerState = 0; // 0=full, 1=hungry, 2=starving, 3=desperate
   dead = false;
   private dying = false;
 
@@ -142,12 +144,11 @@ export class Fish {
     g.fillStyle(0xffffff, 0.25);
     g.fillEllipse(4, -6, 16, 7);
 
-    // dorsal fin
+    // dorsal fin — sharp pointed
     g.fillStyle(finColor, 0.8);
     g.beginPath();
     g.moveTo(-4, -12);
-    g.lineTo(0, -20);
-    g.lineTo(6, -18);
+    g.lineTo(-1, -24);
     g.lineTo(8, -12);
     g.closePath();
     g.fillPath();
@@ -155,8 +156,7 @@ export class Fish {
     g.fillStyle(finHColor, 0.5);
     g.beginPath();
     g.moveTo(-1, -13);
-    g.lineTo(1, -17);
-    g.lineTo(5, -16);
+    g.lineTo(0, -20);
     g.lineTo(5, -13);
     g.closePath();
     g.fillPath();
@@ -260,12 +260,11 @@ export class Fish {
     g.fillStyle(0x999999, 0.6);
     g.fillEllipse(2, 5, 28, 12);
 
-    // dorsal fin
+    // dorsal fin — sharp pointed
     g.fillStyle(0x777777, 0.8);
     g.beginPath();
     g.moveTo(-4, -12);
-    g.lineTo(0, -20);
-    g.lineTo(6, -18);
+    g.lineTo(-1, -24);
     g.lineTo(8, -12);
     g.closePath();
     g.fillPath();
@@ -391,17 +390,22 @@ export class Fish {
   update(delta: number) {
     if (this.dead) return;
 
-    // hunger countdown
-    this.hungerTimer -= delta / 1000;
-    if (this.hungerTimer <= 0) {
-      this.hungerTimer = 0;
-      this.die();
-      return;
-    }
+    // hunger countdown (only if enabled)
+    if (this.scene.hungerEnabled) {
+      this.hungerTimer -= delta / 1000;
+      if (this.hungerTimer <= 0) {
+        this.hungerTimer = 0;
+        this.die();
+        return;
+      }
 
-    // try to eat nearby pellets when hungry
-    if (this.isHungry) {
-      this.tryEatPellet();
+      // try to eat nearby pellets when hungry
+      if (this.isHungry) {
+        this.tryEatPellet();
+      }
+    } else {
+      // keep hunger full when disabled
+      this.hungerTimer = MAX_HUNGER;
     }
 
     // drop coins when not starving (hungry fish still drop coins)
@@ -464,15 +468,23 @@ export class Fish {
     const tiltAngle = (dy / (dist || 1)) * 8;
     this.container.setAngle(this.facingRight ? tiltAngle : -tiltAngle);
 
-    // tail flutter — proportional to swimming speed
+    // tail flutter — proportional to swimming speed, only redraw when angle changes enough
     const speedRatio = Math.min(this.speed / 2.5, 1); // 0 to 1
     const tailSpeed = 0.003 + speedRatio * 0.015;
     const tailAmplitude = 0.15 + speedRatio * 0.55;
     this.tailPhase += tailSpeed * delta;
-    this.drawTail(Math.sin(this.tailPhase) * tailAmplitude);
+    const tailAngle = Math.sin(this.tailPhase) * tailAmplitude;
+    if (Math.abs(tailAngle - this.lastTailAngle) > 0.02) {
+      this.lastTailAngle = tailAngle;
+      this.drawTail(tailAngle);
+    }
 
-    // redraw body for hunger color changes (only when near threshold boundaries)
-    this.drawBody();
+    // only redraw body when hunger state changes
+    const currentState = this.isDesperate ? 3 : this.isStarving ? 2 : this.isHungry ? 1 : 0;
+    if (currentState !== this.lastHungerState) {
+      this.lastHungerState = currentState;
+      this.drawBody();
+    }
   }
 
   private dropCoin() {
