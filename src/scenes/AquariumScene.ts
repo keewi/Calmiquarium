@@ -4,6 +4,7 @@ import { Coin } from '../objects/Coin';
 import { FoodPellet } from '../objects/FoodPellet';
 import { ShopPopup } from '../ui/ShopPopup';
 import { SettingsPopup } from '../ui/SettingsPopup';
+import { Alien } from '../objects/Alien';
 import { loadGame, saveGame } from '../SaveManager';
 
 export class AquariumScene extends Phaser.Scene {
@@ -14,12 +15,21 @@ export class AquariumScene extends Phaser.Scene {
   pellets: FoodPellet[] = [];
   private shopOpen = false;
   hungerEnabled = false;
+  aliensEnabled = false;
 
   private coinText!: Phaser.GameObjects.Text;
   private coinDisplayGlow!: Phaser.GameObjects.Arc;
   private shopBar!: ShopPopup;
   settingsPopup!: SettingsPopup;
   private sandHeight = 60;
+
+  // alien system
+  aliens: Alien[] = [];
+  private alienSpawnTimer = 0;
+  private alienWarningTimer = 0;
+  private warningIndicator: Phaser.GameObjects.Container | null = null;
+  private static readonly ALIEN_SPAWN_INTERVAL_MS = 45000;
+  private static readonly WARNING_DURATION_MS = 7500;
 
   constructor() {
     super('AquariumScene');
@@ -64,6 +74,12 @@ export class AquariumScene extends Phaser.Scene {
         }
       }
 
+      // if aliens are active → punch instead of dropping food
+      if (this.aliens.length > 0) {
+        this.firePunch(x, y);
+        return;
+      }
+
       // drop food if clicking in open water (below the top bar)
       const sandTop = this.scale.height - this.sandHeight;
       const onTopBar = y < 100;
@@ -82,7 +98,11 @@ export class AquariumScene extends Phaser.Scene {
           break;
         }
       }
-      this.game.canvas.style.cursor = overCoin ? 'pointer' : 'default';
+      if (this.aliens.length > 0) {
+        this.game.canvas.style.cursor = overCoin ? 'pointer' : 'crosshair';
+      } else {
+        this.game.canvas.style.cursor = overCoin ? 'pointer' : 'default';
+      }
     });
 
     this.scale.on('resize', () => {
@@ -101,6 +121,7 @@ export class AquariumScene extends Phaser.Scene {
   private dropFood(x: number, y: number) {
     this.coins -= 5;
     this.updateCoinDisplay();
+    this.playFeedSound();
 
     // sparkle burst at click point
     for (let i = 0; i < 6; i++) {
@@ -807,6 +828,327 @@ export class AquariumScene extends Phaser.Scene {
     });
   }
 
+  triggerAlienSpawn() {
+    this.alienWarningTimer = AquariumScene.WARNING_DURATION_MS;
+    this.showAlienWarning();
+  }
+
+  // ─── audio helpers ─────────────────────────────────────────────
+
+  private audioCtx: AudioContext | null = null;
+
+  private getAudioCtx(): AudioContext {
+    if (!this.audioCtx) {
+      this.audioCtx = new AudioContext();
+    }
+    return this.audioCtx;
+  }
+
+  private playPunchSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    // noise burst for the "thwack"
+    const bufferSize = ctx.sampleRate * 0.12;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    // bandpass to make it punchy
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 800;
+    filter.Q.value = 1.5;
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.6, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(now);
+
+    // low thump
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.5, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+
+  playCoinSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.setValueAtTime(1600, now + 0.06);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  }
+
+  playFeedSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  }
+
+  playStageUpSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    // ascending arpeggio
+    const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now + i * 0.08);
+      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.08 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.25);
+    });
+  }
+
+  playAlienWarningSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.setValueAtTime(300, now + 0.15);
+    osc.frequency.setValueAtTime(200, now + 0.3);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.setValueAtTime(0.1, now + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.4);
+  }
+
+  playAlienDeathSound() {
+    const ctx = this.getAudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.5);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  }
+
+  // ─── alien system ───────────────────────────────────────────────
+
+  private firePunch(x: number, y: number) {
+    // hit test against aliens
+    let hitAlien = false;
+    for (const alien of this.aliens) {
+      if (alien.hitTest(x, y)) {
+        alien.takeDamage(x, y);
+        hitAlien = true;
+        break;
+      }
+    }
+
+    if (hitAlien) {
+      this.playPunchSound();
+      this.showPowBurst(x, y);
+    }
+  }
+
+  private showPowBurst(x: number, y: number) {
+    // comic book "POW!" starburst
+    const g = this.add.graphics();
+    g.setDepth(62);
+
+    // jagged starburst shape
+    const points = 10;
+    const outerR = 50;
+    const innerR = 28;
+    g.fillStyle(0xffee00, 1);
+    g.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? outerR : innerR;
+      const px = x + Math.cos(angle) * r;
+      const py = y + Math.sin(angle) * r;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.closePath();
+    g.fillPath();
+
+    // red-orange border
+    g.lineStyle(3, 0xff4400, 1);
+    g.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? outerR : innerR;
+      const px = x + Math.cos(angle) * r;
+      const py = y + Math.sin(angle) * r;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.closePath();
+    g.strokePath();
+
+    // "POW!" text
+    const powText = this.add.text(x, y, 'POW!', {
+      fontSize: '22px',
+      fontFamily: 'Impact, Arial Black, sans-serif',
+      color: '#ff2200',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(63);
+
+    // random slight rotation for comic feel
+    const rot = (Math.random() - 0.5) * 0.3;
+    g.setRotation(rot);
+    powText.setRotation(rot);
+
+    // pop + fade
+    g.setScale(0.3);
+    powText.setScale(0.3);
+    this.tweens.add({
+      targets: [g, powText],
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 80,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: [g, powText],
+          alpha: 0,
+          scaleX: 1.3,
+          scaleY: 1.3,
+          duration: 250,
+          ease: 'Quad.easeOut',
+          onComplete: () => { g.destroy(); powText.destroy(); },
+        });
+      },
+    });
+  }
+
+  private showAlienWarning() {
+    if (this.warningIndicator) return;
+    this.playAlienWarningSound();
+
+    const cx = this.scale.width / 2;
+    const cy = 130;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0xff0000, 0.15);
+    bg.fillRoundedRect(-80, -18, 160, 36, 10);
+    bg.lineStyle(2, 0xff4444, 0.6);
+    bg.strokeRoundedRect(-80, -18, 160, 36, 10);
+
+    const text = this.add.text(0, 0, '⚠️ ALIEN INCOMING', {
+      fontSize: '16px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#ff4444',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    this.warningIndicator = this.add.container(cx, cy, [bg, text]);
+    this.warningIndicator.setDepth(90);
+
+    // pulse animation
+    this.tweens.add({
+      targets: this.warningIndicator,
+      alpha: 0.3,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  private hideAlienWarning() {
+    if (!this.warningIndicator) return;
+    const indicator = this.warningIndicator;
+    this.warningIndicator = null;
+    this.tweens.killTweensOf(indicator);
+    this.tweens.add({
+      targets: indicator,
+      alpha: 0,
+      duration: 200,
+      onComplete: () => indicator.destroy(),
+    });
+  }
+
+  private spawnAlien() {
+    this.hideAlienWarning();
+
+    // enter from a random edge
+    const { width, height } = this.scale;
+    const side = Phaser.Math.Between(0, 3);
+    let x: number, y: number;
+    const waterMaxY = height - this.sandHeight - 40;
+    switch (side) {
+      case 0: x = 30; y = Phaser.Math.Between(80, waterMaxY); break;         // left
+      case 1: x = width - 30; y = Phaser.Math.Between(80, waterMaxY); break; // right
+      case 2: x = Phaser.Math.Between(80, width - 80); y = 30; break;        // top
+      default: x = Phaser.Math.Between(80, width - 80); y = waterMaxY; break; // bottom
+    }
+
+    const alien = new Alien(this, x, y);
+    this.aliens.push(alien);
+  }
+
   update(_time: number, delta: number) {
     for (const fish of this.fish) {
       fish.update(delta);
@@ -820,5 +1162,34 @@ export class AquariumScene extends Phaser.Scene {
       pellet.update(delta);
     }
     this.pellets = this.pellets.filter(p => !p.consumed);
+
+    // alien updates
+    for (const alien of this.aliens) {
+      alien.update(delta);
+    }
+    this.aliens = this.aliens.filter(a => !a.dead);
+
+    // alien spawn scheduling (only if aliens toggle is on)
+    if (this.aliensEnabled && this.aliens.length === 0 && this.alienWarningTimer <= 0) {
+      this.alienSpawnTimer += delta;
+      if (this.alienSpawnTimer >= AquariumScene.ALIEN_SPAWN_INTERVAL_MS) {
+        this.alienSpawnTimer = 0;
+        this.alienWarningTimer = AquariumScene.WARNING_DURATION_MS;
+        this.showAlienWarning();
+      }
+    }
+
+    if (this.alienWarningTimer > 0) {
+      this.alienWarningTimer -= delta;
+      if (this.alienWarningTimer <= 0) {
+        this.alienWarningTimer = 0;
+        this.spawnAlien();
+      }
+    }
+
+    // update cursor based on alien mode
+    if (this.aliens.length > 0) {
+      this.game.canvas.style.cursor = 'crosshair';
+    }
   }
 }

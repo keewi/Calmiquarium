@@ -155,6 +155,9 @@ export class Fish {
     this.drawTail(0);
     this.lastTailAngle = -999;
 
+    // stage-up sound
+    this.scene.playStageUpSound();
+
     // pop effect
     this.scene.tweens.add({
       targets: this.container,
@@ -472,27 +475,28 @@ export class Fish {
     this.wanderInterval = Phaser.Math.Between(2000, 4500);
   }
 
+  private _nearestPelletResult = { x: 0, y: 0 };
   private findNearestPellet(): { x: number; y: number } | null {
-    const pellets = this.scene.pellets.filter(p => !p.consumed);
-    if (pellets.length === 0) return null;
-
-    let closest = pellets[0];
+    let found = false;
     let closestDist = Infinity;
-    for (const p of pellets) {
+    for (const p of this.scene.pellets) {
+      if (p.consumed) continue;
       const dx = p.x - this.container.x;
       const dy = p.y - this.container.y;
       const d = dx * dx + dy * dy;
       if (d < closestDist) {
         closestDist = d;
-        closest = p;
+        this._nearestPelletResult.x = p.x;
+        this._nearestPelletResult.y = p.y;
+        found = true;
       }
     }
-    return { x: closest.x, y: closest.y };
+    return found ? this._nearestPelletResult : null;
   }
 
   private tryEatPellet(): boolean {
-    const pellets = this.scene.pellets.filter(p => !p.consumed);
-    for (const p of pellets) {
+    for (const p of this.scene.pellets) {
+      if (p.consumed) continue;
       const dx = p.x - this.container.x;
       const dy = p.y - this.container.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -627,6 +631,14 @@ export class Fish {
       this.drawBody();
     }
   }
+
+  /** Instantly kill this fish (e.g. eaten by alien). */
+  kill() {
+    this.die();
+  }
+
+  get x() { return this.container.x; }
+  get y() { return this.container.y; }
 
   private dropCoin(type: CoinType) {
     new Coin(this.scene, this.container.x, this.container.y + 12, type);

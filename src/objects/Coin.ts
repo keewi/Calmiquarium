@@ -18,8 +18,10 @@ export class Coin {
   private glow: Phaser.GameObjects.Arc;
   collected = false;
   private settled = false;
+  private settledTime = 0;
   private sandY: number;
   private coinType: CoinType;
+  private static readonly EXPIRE_MS = 15000; // coins vanish after 15s on floor
 
   constructor(scene: AquariumScene, x: number, y: number, type: CoinType = 'gold') {
     this.scene = scene;
@@ -47,12 +49,33 @@ export class Coin {
   }
 
   update(delta: number) {
-    if (this.settled || this.collected) return;
-    this.container.y += COIN_FALL_SPEED * (delta / 1000);
-    if (this.container.y >= this.sandY) {
-      this.container.y = this.sandY;
-      this.settled = true;
+    if (this.collected) return;
+    if (!this.settled) {
+      this.container.y += COIN_FALL_SPEED * (delta / 1000);
+      if (this.container.y >= this.sandY) {
+        this.container.y = this.sandY;
+        this.settled = true;
+        this.settledTime = 0;
+      }
+    } else {
+      // expire after sitting on floor too long
+      this.settledTime += delta;
+      if (this.settledTime >= Coin.EXPIRE_MS) {
+        this.expire();
+      }
     }
+  }
+
+  private expire() {
+    if (this.collected) return;
+    this.collected = true; // mark so it gets filtered out
+    this.scene.tweens.add({
+      targets: this.container,
+      alpha: 0,
+      duration: 500,
+      ease: 'Quad.easeIn',
+      onComplete: () => this.container.destroy(),
+    });
   }
 
   private drawCoin(g: Phaser.GameObjects.Graphics) {
@@ -143,6 +166,7 @@ export class Coin {
       ease: 'Quad.easeOut',
       onComplete: () => {
         this.container.destroy();
+        this.scene.playCoinSound();
         this.scene.flashCoinDisplay(() => {
           this.scene.coins += value;
           this.scene.updateCoinDisplay();

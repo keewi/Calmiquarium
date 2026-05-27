@@ -17,9 +17,15 @@ export class SettingsPopup {
   private hungerToggleKnob!: Phaser.GameObjects.Arc;
   private hungerStatusText!: Phaser.GameObjects.Text;
 
+  private pendingAliens = true;
+  private aliensToggleBg!: Phaser.GameObjects.Graphics;
+  private aliensToggleKnob!: Phaser.GameObjects.Arc;
+  private aliensStatusText!: Phaser.GameObjects.Text;
+
   constructor(scene: AquariumScene) {
     this.scene = scene;
     this.pendingHunger = scene.hungerEnabled;
+    this.pendingAliens = scene.aliensEnabled;
 
     // overlay
     this.overlay = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0.5);
@@ -187,105 +193,144 @@ export class SettingsPopup {
   private createTestingDialog(scene: AquariumScene): Phaser.GameObjects.Container {
     const panel = scene.add.graphics();
     panel.fillStyle(0x1a2a4a, 0.98);
-    panel.fillRoundedRect(-160, -110, 320, 220, 16);
+    panel.fillRoundedRect(-160, -170, 320, 340, 16);
     panel.lineStyle(2, 0x44aacc, 1);
-    panel.strokeRoundedRect(-160, -110, 320, 220, 16);
+    panel.strokeRoundedRect(-160, -170, 320, 340, 16);
 
-    const title = scene.add.text(0, -85, '🧪 Testing Mode', {
+    const title = scene.add.text(0, -145, '🧪 Testing Mode', {
       fontSize: '22px', color: '#88ddff', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const divider = scene.add.graphics();
     divider.lineStyle(1, 0x44aacc, 0.5);
-    divider.lineBetween(-140, -60, 140, -60);
+    divider.lineBetween(-140, -120, 140, -120);
 
     // --- Hunger toggle ---
-    const hungerLabel = scene.add.text(-120, -30, 'Hunger', {
+    const hungerLabel = scene.add.text(-120, -90, 'Hunger', {
       fontSize: '18px', color: '#ccddee', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
-    // toggle switch
     this.hungerToggleBg = scene.add.graphics();
-    this.hungerToggleKnob = scene.add.circle(0, -30, 10, 0xffffff, 1);
-
-    this.hungerStatusText = scene.add.text(130, -30, 'ON', {
+    this.hungerToggleKnob = scene.add.circle(0, -90, 10, 0xffffff, 1);
+    this.hungerStatusText = scene.add.text(130, -90, 'ON', {
       fontSize: '13px', color: '#66cc88', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(1, 0.5);
 
-    this.drawToggle(this.pendingHunger);
+    this.drawToggle(this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, -90, this.pendingHunger);
 
-    const toggleZone = scene.add.rectangle(95, -30, 50, 28);
-    toggleZone.setInteractive({ useHandCursor: true });
-    toggleZone.on('pointerdown', () => {
+    const hungerToggleZone = scene.add.rectangle(95, -90, 50, 28);
+    hungerToggleZone.setInteractive({ useHandCursor: true });
+    hungerToggleZone.on('pointerdown', () => {
       this.pendingHunger = !this.pendingHunger;
-      this.drawToggle(this.pendingHunger);
+      this.drawToggle(this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, -90, this.pendingHunger);
+    });
+
+    // --- Aliens toggle ---
+    const aliensLabel = scene.add.text(-120, -50, 'Aliens', {
+      fontSize: '18px', color: '#ccddee', fontFamily: 'Arial', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+
+    this.aliensToggleBg = scene.add.graphics();
+    this.aliensToggleKnob = scene.add.circle(0, -50, 10, 0xffffff, 1);
+    this.aliensStatusText = scene.add.text(130, -50, 'ON', {
+      fontSize: '13px', color: '#66cc88', fontFamily: 'Arial', fontStyle: 'bold',
+    }).setOrigin(1, 0.5);
+
+    this.drawToggle(this.aliensToggleBg, this.aliensToggleKnob, this.aliensStatusText, -50, this.pendingAliens);
+
+    const aliensToggleZone = scene.add.rectangle(95, -50, 50, 28);
+    aliensToggleZone.setInteractive({ useHandCursor: true });
+    aliensToggleZone.on('pointerdown', () => {
+      this.pendingAliens = !this.pendingAliens;
+      this.drawToggle(this.aliensToggleBg, this.aliensToggleKnob, this.aliensStatusText, -50, this.pendingAliens);
+    });
+
+    // --- Spawn Alien button ---
+    const spawnBg = scene.add.graphics();
+    spawnBg.fillStyle(0x8833aa, 0.9);
+    spawnBg.fillRoundedRect(-140, -15, 280, 45, 10);
+    const spawnText = scene.add.text(0, 7, '👾 Spawn Alien', {
+      fontSize: '16px', color: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    const spawnZone = scene.add.rectangle(0, 7, 280, 45);
+    spawnZone.setInteractive({ useHandCursor: true });
+    spawnZone.on('pointerover', () => {
+      spawnBg.clear(); spawnBg.fillStyle(0xaa44cc, 0.9); spawnBg.fillRoundedRect(-140, -15, 280, 45, 10);
+    });
+    spawnZone.on('pointerout', () => {
+      spawnBg.clear(); spawnBg.fillStyle(0x8833aa, 0.9); spawnBg.fillRoundedRect(-140, -15, 280, 45, 10);
+    });
+    spawnZone.on('pointerdown', () => {
+      this.scene.triggerAlienSpawn();
+      this.hideTesting();
+      this.hide();
     });
 
     // --- Save button ---
     const saveBg = scene.add.graphics();
     saveBg.fillStyle(0x22aa44, 0.9);
-    saveBg.fillRoundedRect(-140, 30, 135, 50, 10);
-    const saveText = scene.add.text(-72, 55, 'Save', {
+    saveBg.fillRoundedRect(-140, 50, 135, 50, 10);
+    const saveText = scene.add.text(-72, 75, 'Save', {
       fontSize: '18px', color: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const saveZone = scene.add.rectangle(-72, 55, 135, 50);
+    const saveZone = scene.add.rectangle(-72, 75, 135, 50);
     saveZone.setInteractive({ useHandCursor: true });
     saveZone.on('pointerover', () => {
-      saveBg.clear(); saveBg.fillStyle(0x33cc55, 0.9); saveBg.fillRoundedRect(-140, 30, 135, 50, 10);
+      saveBg.clear(); saveBg.fillStyle(0x33cc55, 0.9); saveBg.fillRoundedRect(-140, 50, 135, 50, 10);
     });
     saveZone.on('pointerout', () => {
-      saveBg.clear(); saveBg.fillStyle(0x22aa44, 0.9); saveBg.fillRoundedRect(-140, 30, 135, 50, 10);
+      saveBg.clear(); saveBg.fillStyle(0x22aa44, 0.9); saveBg.fillRoundedRect(-140, 50, 135, 50, 10);
     });
     saveZone.on('pointerdown', () => this.saveTestingMode());
 
     // --- Cancel button ---
     const cancelBg = scene.add.graphics();
     cancelBg.fillStyle(0x334466, 0.9);
-    cancelBg.fillRoundedRect(5, 30, 135, 50, 10);
-    const cancelText = scene.add.text(72, 55, 'Cancel', {
+    cancelBg.fillRoundedRect(5, 50, 135, 50, 10);
+    const cancelText = scene.add.text(72, 75, 'Cancel', {
       fontSize: '18px', color: '#aaccee', fontFamily: 'Arial', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const cancelZone = scene.add.rectangle(72, 55, 135, 50);
+    const cancelZone = scene.add.rectangle(72, 75, 135, 50);
     cancelZone.setInteractive({ useHandCursor: true });
     cancelZone.on('pointerover', () => {
-      cancelBg.clear(); cancelBg.fillStyle(0x445577, 0.9); cancelBg.fillRoundedRect(5, 30, 135, 50, 10);
+      cancelBg.clear(); cancelBg.fillStyle(0x445577, 0.9); cancelBg.fillRoundedRect(5, 50, 135, 50, 10);
     });
     cancelZone.on('pointerout', () => {
-      cancelBg.clear(); cancelBg.fillStyle(0x334466, 0.9); cancelBg.fillRoundedRect(5, 30, 135, 50, 10);
+      cancelBg.clear(); cancelBg.fillStyle(0x334466, 0.9); cancelBg.fillRoundedRect(5, 50, 135, 50, 10);
     });
     cancelZone.on('pointerdown', () => this.cancelTestingMode());
 
     return scene.add.container(
       scene.scale.width / 2, scene.scale.height / 2,
-      [panel, title, divider, hungerLabel, this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, toggleZone, saveBg, saveText, saveZone, cancelBg, cancelText, cancelZone]
+      [panel, title, divider,
+       hungerLabel, this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, hungerToggleZone,
+       aliensLabel, this.aliensToggleBg, this.aliensToggleKnob, this.aliensStatusText, aliensToggleZone,
+       spawnBg, spawnText, spawnZone,
+       saveBg, saveText, saveZone, cancelBg, cancelText, cancelZone]
     );
   }
 
-  private drawToggle(on: boolean) {
-    const g = this.hungerToggleBg;
-    g.clear();
+  private drawToggle(bg: Phaser.GameObjects.Graphics, knob: Phaser.GameObjects.Arc, statusText: Phaser.GameObjects.Text, y: number, on: boolean) {
+    bg.clear();
 
     const x = 80;
-    const y = -30;
     const w = 44;
     const h = 24;
     const r = h / 2;
 
-    // track
-    g.fillStyle(on ? 0x33aa55 : 0x555566, 0.9);
-    g.fillRoundedRect(x - w / 2, y - h / 2, w, h, r);
-    g.lineStyle(1.5, on ? 0x44cc66 : 0x666677, 0.6);
-    g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, r);
+    bg.fillStyle(on ? 0x33aa55 : 0x555566, 0.9);
+    bg.fillRoundedRect(x - w / 2, y - h / 2, w, h, r);
+    bg.lineStyle(1.5, on ? 0x44cc66 : 0x666677, 0.6);
+    bg.strokeRoundedRect(x - w / 2, y - h / 2, w, h, r);
 
-    // knob position
     const knobX = on ? x + w / 2 - r - 1 : x - w / 2 + r + 1;
-    this.hungerToggleKnob.setPosition(knobX, y);
+    knob.setPosition(knobX, y);
 
-    // status text
-    this.hungerStatusText.setText(on ? 'ON' : 'OFF');
-    this.hungerStatusText.setColor(on ? '#66cc88' : '#aa6666');
+    statusText.setText(on ? 'ON' : 'OFF');
+    statusText.setColor(on ? '#66cc88' : '#aa6666');
   }
 
   show() {
@@ -339,7 +384,9 @@ export class SettingsPopup {
   private showTesting() {
     this.testingOpen = true;
     this.pendingHunger = this.scene.hungerEnabled;
-    this.drawToggle(this.pendingHunger);
+    this.pendingAliens = this.scene.aliensEnabled;
+    this.drawToggle(this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, -90, this.pendingHunger);
+    this.drawToggle(this.aliensToggleBg, this.aliensToggleKnob, this.aliensStatusText, -50, this.pendingAliens);
     this.testingContainer.setVisible(true);
     this.testingContainer.setScale(0.8);
     this.testingContainer.setAlpha(0);
@@ -350,12 +397,15 @@ export class SettingsPopup {
 
   private saveTestingMode() {
     this.scene.hungerEnabled = this.pendingHunger;
+    this.scene.aliensEnabled = this.pendingAliens;
     this.hideTesting();
   }
 
   private cancelTestingMode() {
     this.pendingHunger = this.scene.hungerEnabled;
-    this.drawToggle(this.pendingHunger);
+    this.pendingAliens = this.scene.aliensEnabled;
+    this.drawToggle(this.hungerToggleBg, this.hungerToggleKnob, this.hungerStatusText, -90, this.pendingHunger);
+    this.drawToggle(this.aliensToggleBg, this.aliensToggleKnob, this.aliensStatusText, -50, this.pendingAliens);
     this.hideTesting();
   }
 
