@@ -18,6 +18,7 @@ export class Sidebar {
   private shopLabel: Text;
   private santaItem: ShopItem;
   private pegasusItem: ShopItem;
+  private freeGoldBtn: Container;
 
   constructor(private world: World) {
     this.view.eventMode = 'static';   // swallow taps so they don't reach the water
@@ -44,7 +45,9 @@ export class Sidebar {
     this.santaItem = new ShopItem(world.textures.santa.texture, 0.42, 'Santa', CONFIG.shop.santa, () => world.buySanta());
     this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
-    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel, this.santaItem.view, this.pegasusItem.view);
+    this.freeGoldBtn = makeButton('+100 gold', () => world.addCoins(100));
+
+    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel, this.santaItem.view, this.pegasusItem.view, this.freeGoldBtn);
     this.refresh();
   }
 
@@ -64,6 +67,7 @@ export class Sidebar {
     this.shopLabel.position.set(PAD, 126);
     this.santaItem.view.position.set(PAD, 150);
     this.pegasusItem.view.position.set(PAD, 150 + ITEM_H + 10);
+    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 2 + 6);
   }
 
   refresh() {
@@ -72,6 +76,30 @@ export class Sidebar {
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
     this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
   }
+}
+
+// ─── plain button ─────────────────────────────────────────────────────
+
+function makeButton(label: string, onClick: () => void): Container {
+  const w = W - PAD * 2, h = 36;
+  const view = new Container();
+  const bg = new Graphics();
+  const draw = (hover: boolean) => {
+    bg.clear();
+    bg.roundRect(0, 0, w, h, 8).fill(hover ? 0x2a4f80 : 0x1b3660);
+    bg.roundRect(0, 0, w, h, 8).stroke({ width: 1, color: 0x3a6aa8, alpha: 0.8 });
+  };
+  draw(false);
+  const text = new Text({ text: label, style: { fontFamily: 'Arial', fontSize: 14, fontWeight: 'bold', fill: 0xffd54a } });
+  text.anchor.set(0.5);
+  text.position.set(w / 2, h / 2);
+  view.addChild(bg, text);
+  view.eventMode = 'static';
+  view.cursor = 'pointer';
+  view.on('pointerover', () => draw(true));
+  view.on('pointerout', () => draw(false));
+  view.on('pointerdown', (e: FederatedPointerEvent) => { e.stopPropagation(); onClick(); });
+  return view;
 }
 
 // ─── shop item card ───────────────────────────────────────────────────

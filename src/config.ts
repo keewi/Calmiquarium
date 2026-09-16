@@ -3,7 +3,7 @@
  * Speeds are px/sec, timers are ms unless the key says otherwise.
  */
 export const CONFIG = {
-  start: { gold: 200, fish: 0 },
+  start: { gold: 1000, fish: 0 },
 
   layout: { sandHeight: 60, topBarHeight: 0, sidebarWidth: 220, margin: 40 },
 
