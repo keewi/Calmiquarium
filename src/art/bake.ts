@@ -22,6 +22,8 @@ export interface Textures {
   tail: Baked[][];  // [look][frame]
   coin: Record<CoinType, Baked>;
   pellet: Baked;
+  santa: Baked;
+  chimney: Baked;
 }
 
 const BASE = {
@@ -158,6 +160,62 @@ function drawPellet(g: Graphics) {
 
 const PELLET_FRAME = new Rectangle(-6, -6, 12, 12);
 
+// ─── santa (faces +x, feet at origin) ─────────────────────────────────
+
+function drawSanta(g: Graphics) {
+  const red = 0xd8262c, redDark = 0xa8161c, white = 0xfafafa, skin = 0xf6c9a0;
+  // boots
+  g.roundRect(-13, -8, 11, 8, 3).fill(0x1c1c1c);
+  g.roundRect(2, -8, 11, 8, 3).fill(0x1c1c1c);
+  // legs
+  g.rect(-11, -18, 8, 11).fill(redDark);
+  g.rect(3, -18, 8, 11).fill(redDark);
+  // coat
+  g.ellipse(0, -30, 17, 19).fill(red);
+  g.rect(-17, -14, 34, 5).fill(white);               // hem trim
+  g.rect(-16, -25, 32, 5).fill(0x1c1c1c);            // belt
+  g.roundRect(-4, -26, 8, 7, 1.5).fill(0xf2c14e);    // buckle
+  // arms + mittens
+  g.roundRect(-24, -40, 10, 18, 5).fill(red);
+  g.roundRect(14, -40, 10, 18, 5).fill(red);
+  g.circle(-19, -22, 4.5).fill(white);
+  g.circle(19, -22, 4.5).fill(white);
+  // head
+  g.circle(0, -50, 10).fill(skin);
+  // beard
+  g.ellipse(1, -43, 10, 8).fill(white);
+  g.ellipse(1, -40, 7, 6).fill(white);
+  // hat
+  g.poly([-11, -56, 11, -56, 5, -74]).fill(red);
+  g.roundRect(-12, -59, 24, 5, 2).fill(white);
+  g.circle(5, -74, 3.2).fill(white);
+  // face
+  g.circle(-3, -52, 1.3).fill(0x222222);
+  g.circle(4, -52, 1.3).fill(0x222222);
+  g.circle(1, -48, 2.2).fill(0xe98b85);
+  g.circle(-5, -48, 2).fill({ color: 0xff8080, alpha: 0.35 });   // rosy cheek
+}
+
+const SANTA_FRAME = new Rectangle(-26, -80, 52, 82);
+
+// ─── chimney (base at origin) ─────────────────────────────────────────
+
+function drawChimney(g: Graphics) {
+  const brick = 0x9b3b2f, mortar = 0xc46a5b, cap = 0x6e6e70;
+  g.rect(-20, -60, 40, 60).fill(brick);
+  // mortar lines
+  for (let y = -52; y < 0; y += 10) g.rect(-20, y, 40, 1.5).fill({ color: mortar, alpha: 0.8 });
+  for (let y = -52, row = 0; y < 0; y += 10, row++) {
+    for (let x = -20 + (row % 2 ? 7 : 0); x < 20; x += 14) g.rect(x, y - 9, 1.5, 9).fill({ color: mortar, alpha: 0.6 });
+  }
+  // cap + opening
+  g.rect(-24, -66, 48, 7).fill(cap);
+  g.rect(-24, -66, 48, 2).fill({ color: 0xffffff, alpha: 0.2 });
+  g.ellipse(0, -66, 16, 3.5).fill(0x151515);
+}
+
+const CHIMNEY_FRAME = new Rectangle(-26, -70, 52, 72);
+
 // ─── entry point ──────────────────────────────────────────────────────
 
 export function bakeTextures(renderer: Renderer): Textures {
@@ -192,7 +250,15 @@ export function bakeTextures(renderer: Renderer): Textures {
   drawPellet(pg);
   const pellet = bake(renderer, pg, PELLET_FRAME);
 
-  return { body, tail, coin, pellet };
+  const sg = new Graphics();
+  drawSanta(sg);
+  const santa = bake(renderer, sg, SANTA_FRAME);
+
+  const cg = new Graphics();
+  drawChimney(cg);
+  const chimney = bake(renderer, cg, CHIMNEY_FRAME);
+
+  return { body, tail, coin, pellet, santa, chimney };
 }
 
 /** Map a tail angle in [-MAX, MAX] to the nearest baked frame. */

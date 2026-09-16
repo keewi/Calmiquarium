@@ -1,11 +1,13 @@
 import { Application, Container, FederatedPointerEvent, Graphics } from 'pixi.js';
 import { CONFIG, CoinType, Stage } from '../config';
 import { bakeTextures, Textures } from '../art/bake';
+import { audio } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { ease, Tweens } from '../core/tween';
 import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
 import { Pellet } from '../entities/Pellet';
+import { SantaVisit } from '../entities/SantaVisit';
 import { Background } from '../ui/Background';
 import { Sidebar } from '../ui/Sidebar';
 import { Seaweed } from '../ui/Seaweed';
@@ -28,6 +30,7 @@ export class World {
   fish: Fish[] = [];
   droppedCoins: Coin[] = [];
   pellets: Pellet[] = [];
+  santa: SantaVisit | null = null;
 
   gold = 0;
   hungerEnabled = false;
@@ -103,6 +106,11 @@ export class World {
     for (const c of this.droppedCoins) c.update(dt);
     compact(this.droppedCoins, c => c.collected);
 
+    if (this.santa) {
+      this.santa.update(dt);
+      if (this.santa.done) { this.santa = null; this.sidebar.refresh(); }
+    }
+
     if (this.dirty) {
       this.saveTimer += dt;
       if (this.saveTimer >= 1) this.persist();
@@ -139,6 +147,17 @@ export class World {
     this.gold -= n;
     this.sidebar.refresh();
     this.markDirty();
+  }
+
+  buySanta() {
+    if (this.santa || this.gold < CONFIG.shop.santa) return;
+    audio.unlock();
+    this.spend(CONFIG.shop.santa);
+    const m = CONFIG.layout.margin + 40;
+    const x = this.waterLeft + m + Math.random() * (this.waterWidth - m * 2);
+    this.santa = new SantaVisit(this, x);
+    this.layers.fish.addChild(this.santa.view);
+    this.sidebar.refresh();
   }
 
   // ─── entities ───────────────────────────────────────────────────────

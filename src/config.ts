@@ -46,7 +46,14 @@ export const CONFIG = {
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
 
-  shop: { guppy: 50, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+  shop: { guppy: 50, santa: 100, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+
+  santa: {
+    visitMs: 20000,             // time roaming before he heads home
+    speed: 70,                  // px/sec
+    laughEveryMs: [4000, 7000],
+    laughMs: 1800,
+  },
 
   alien: {
     spawnIntervalMs: 45000,
