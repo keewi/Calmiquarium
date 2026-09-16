@@ -17,6 +17,7 @@ export class Sidebar {
   private goldText: Text;
   private shopLabel: Text;
   private santaItem: ShopItem;
+  private pegasusItem: ShopItem;
 
   constructor(private world: World) {
     this.view.eventMode = 'static';   // swallow taps so they don't reach the water
@@ -41,8 +42,9 @@ export class Sidebar {
     });
 
     this.santaItem = new ShopItem(world.textures.santa.texture, 0.42, 'Santa', CONFIG.shop.santa, () => world.buySanta());
+    this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
-    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel, this.santaItem.view);
+    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel, this.santaItem.view, this.pegasusItem.view);
     this.refresh();
   }
 
@@ -61,12 +63,14 @@ export class Sidebar {
     g.rect(PAD, 112, W - PAD * 2, 1).fill({ color: 0x2f5f9a, alpha: 0.7 });
     this.shopLabel.position.set(PAD, 126);
     this.santaItem.view.position.set(PAD, 150);
+    this.pegasusItem.view.position.set(PAD, 150 + ITEM_H + 10);
   }
 
   refresh() {
     this.goldText.text = String(this.world.gold);
     const w = this.world;
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
+    this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
   }
 }
 
@@ -84,9 +88,9 @@ class ShopItem {
 
   constructor(icon: Texture, iconScale: number, name: string, cost: number, onBuy: () => void) {
     const sprite = new Sprite(icon);
-    sprite.anchor.set(0.5, 1);
+    sprite.anchor.set(0.5, 0.5);
     sprite.scale.set(iconScale);
-    sprite.position.set(30, ITEM_H - 12);
+    sprite.position.set(30, ITEM_H / 2);
 
     const label = new Text({ text: name, style: { fontFamily: 'Arial', fontSize: 16, fontWeight: 'bold', fill: 0xffffff } });
     label.position.set(60, 14);

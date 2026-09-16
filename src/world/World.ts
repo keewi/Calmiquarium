@@ -6,6 +6,7 @@ import { loadSave, writeSave } from '../core/save';
 import { ease, Tweens } from '../core/tween';
 import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
+import { Pegasus } from '../entities/Pegasus';
 import { Pellet } from '../entities/Pellet';
 import { SantaVisit } from '../entities/SantaVisit';
 import { Background } from '../ui/Background';
@@ -31,6 +32,7 @@ export class World {
   droppedCoins: Coin[] = [];
   pellets: Pellet[] = [];
   santa: SantaVisit | null = null;
+  pegasi: Pegasus[] = [];
 
   gold = 0;
   hungerEnabled = false;
@@ -111,6 +113,9 @@ export class World {
       if (this.santa.done) { this.santa = null; this.sidebar.refresh(); }
     }
 
+    for (const p of this.pegasi) p.update(dt);
+    compact(this.pegasi, p => p.done);
+
     if (this.dirty) {
       this.saveTimer += dt;
       if (this.saveTimer >= 1) this.persist();
@@ -158,6 +163,15 @@ export class World {
     this.santa = new SantaVisit(this, x);
     this.layers.fish.addChild(this.santa.view);
     this.sidebar.refresh();
+  }
+
+  buyPegasus() {
+    if (this.gold < CONFIG.shop.pegasus) return;
+    audio.unlock();
+    this.spend(CONFIG.shop.pegasus);
+    const p = new Pegasus(this);
+    this.pegasi.push(p);
+    this.layers.fx.addChild(p.view);   // above fish and coins — it's flying past the glass
   }
 
   // ─── entities ───────────────────────────────────────────────────────

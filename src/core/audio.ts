@@ -16,6 +16,54 @@ class Audio {
     for (let i = 0; i < 3; i++) this.ho(ctx, t0 + i * 0.3, 1 - i * 0.08);
   }
 
+  /** A long drawn-out whinny. */
+  neigh() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.02;
+    const dur = 1.4;
+
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0, t);
+    out.gain.linearRampToValueAtTime(0.22, t + 0.08);
+    out.gain.setValueAtTime(0.22, t + dur * 0.55);
+    out.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    out.connect(ctx.destination);
+
+    // nasal formant
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1500, t);
+    bp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    bp.Q.value = 2.5;
+    bp.connect(out);
+
+    // pitch: quick rise, long fall
+    const voice = ctx.createOscillator();
+    voice.type = 'sawtooth';
+    voice.frequency.setValueAtTime(620, t);
+    voice.frequency.exponentialRampToValueAtTime(980, t + 0.18);
+    voice.frequency.exponentialRampToValueAtTime(420, t + dur);
+    voice.connect(bp);
+
+    // fast wobble that slows as the neigh trails off
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(14, t);
+    lfo.frequency.linearRampToValueAtTime(7, t + dur);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 55;
+    lfo.connect(lfoGain).connect(voice.frequency);
+
+    // breathy layer
+    const trem = ctx.createOscillator();
+    trem.frequency.value = 22;
+    const tremGain = ctx.createGain();
+    tremGain.gain.value = 0.08;
+    trem.connect(tremGain).connect(out.gain);
+
+    for (const o of [voice, lfo, trem]) { o.start(t); o.stop(t + dur + 0.05); }
+  }
+
   private ho(ctx: AudioContext, t: number, pitch: number) {
     const dur = 0.22;
     const out = ctx.createGain();

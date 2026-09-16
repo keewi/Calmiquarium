@@ -24,6 +24,8 @@ export interface Textures {
   pellet: Baked;
   santa: Baked;
   chimney: Baked;
+  pegasus: Baked[];   // wing frames: up, mid, down
+  rainbow: Texture;
 }
 
 const BASE = {
@@ -216,6 +218,85 @@ function drawChimney(g: Graphics) {
 
 const CHIMNEY_FRAME = new Rectangle(-26, -70, 52, 72);
 
+// ─── pegasus (faces +x, centred on the body) ──────────────────────────
+
+function drawPegasus(g: Graphics, wing: number) {
+  const white = 0xfdfdfd, shade = 0xdfe3ee, mane = 0xd9a6f5, mane2 = 0xf5b3d6, hoof = 0x8e8e9a;
+  const lift = wing * 18;   // -1 down … 1 up
+
+  // tail: a bundle of strands sweeping back and down from the rump
+  const strands: [number, number, number, number, number, number][] = [
+    // [ctrl1x, ctrl1y, ctrl2x, ctrl2y, endx, endy]
+    [-40, -10, -54, -2, -56, 10],
+    [-40, -6, -52, 4, -52, 18],
+    [-38, -2, -50, 10, -46, 26],
+    [-36, 2, -46, 14, -40, 30],
+  ];
+  strands.forEach(([c1x, c1y, c2x, c2y, ex, ey], i) => {
+    g.moveTo(-26, -3);
+    g.bezierCurveTo(c1x, c1y, c2x, c2y, ex, ey);
+    g.stroke({ width: 6 - i, color: i % 2 ? mane2 : mane, cap: 'round' });
+  });
+  g.circle(-26, -3, 4).fill(mane);   // tail root tuft
+
+  // back wing (behind body), rooted at the shoulder
+  g.poly([8, -9, -6, -24 - lift, -24, -20 - lift * 0.6, -18, -9 - lift * 0.3, -2, -2]).fill(shade);
+
+  // legs
+  for (const [x, ang] of [[-16, -0.35], [-8, 0.25], [10, -0.3], [18, 0.3]]) {
+    g.moveTo(x, 6).lineTo(x + Math.sin(ang) * 14, 20).stroke({ width: 5, color: white, cap: 'round' });
+    g.circle(x + Math.sin(ang) * 14, 21, 2.8).fill(hoof);
+  }
+
+  // body
+  g.ellipse(0, 0, 28, 15).fill(white);
+  g.ellipse(2, 5, 20, 8).fill({ color: shade, alpha: 0.5 });
+
+  // neck + head
+  g.poly([14, -8, 24, -30, 34, -28, 26, -2]).fill(white);
+  g.ellipse(32, -32, 11, 8).fill(white);
+  g.ellipse(41, -30, 6, 4.5).fill(white);              // muzzle
+  g.circle(43, -29, 1.3).fill(0x6a6a75);               // nostril
+  g.poly([25, -38, 28, -47, 31, -38]).fill(white);      // ear
+  g.circle(34, -34, 2).fill(0x333344);                 // eye
+  g.circle(34.6, -34.6, 0.7).fill(0xffffff);
+  g.circle(36, -30, 2.5).fill({ color: 0xff9ec8, alpha: 0.5 });   // blush
+
+  // mane
+  g.moveTo(24, -40);
+  g.bezierCurveTo(18, -36, 14, -22, 16, -10);
+  g.stroke({ width: 5, color: mane, cap: 'round' });
+  g.moveTo(22, -38);
+  g.bezierCurveTo(17, -30, 15, -20, 17, -12);
+  g.stroke({ width: 2.5, color: mane2, cap: 'round' });
+
+  // front wing, rooted just behind the neck
+  g.poly([16, -12, 2, -28 - lift, -14, -26 - lift * 0.7, -10, -14 - lift * 0.3, 6, -6]).fill(white);
+  g.poly([14, -12, 2, -24 - lift * 0.9, -10, -22 - lift * 0.6, -4, -13 - lift * 0.3]).fill({ color: shade, alpha: 0.6 });
+  // feather notches along the trailing edge
+  for (const k of [0.3, 0.55, 0.8]) {
+    const x = 2 + (-14 - 2) * k, y = (-28 - lift) + ((-26 - lift * 0.7) - (-28 - lift)) * k;
+    g.circle(x, y + 3, 2.2).fill(white);
+  }
+}
+
+const PEGASUS_FRAME = new Rectangle(-62, -60, 114, 96);
+
+/** Rainbow strip used as a MeshRope texture: bands across, fading in along x. */
+function drawRainbow(g: Graphics) {
+  const colors = [0xff5c5c, 0xffa64d, 0xffe14d, 0x6ee06e, 0x5cb8ff, 0xb98cff];
+  const len = 128, band = 4;
+  const steps = 16;
+  for (let sx = 0; sx < steps; sx++) {
+    const alpha = 0.05 + (sx / (steps - 1)) * 0.75;
+    for (let i = 0; i < colors.length; i++) {
+      g.rect((sx * len) / steps, i * band, len / steps + 0.5, band).fill({ color: colors[i], alpha });
+    }
+  }
+}
+
+const RAINBOW_FRAME = new Rectangle(0, 0, 128, 24);
+
 // ─── entry point ──────────────────────────────────────────────────────
 
 export function bakeTextures(renderer: Renderer): Textures {
@@ -258,7 +339,17 @@ export function bakeTextures(renderer: Renderer): Textures {
   drawChimney(cg);
   const chimney = bake(renderer, cg, CHIMNEY_FRAME);
 
-  return { body, tail, coin, pellet, santa, chimney };
+  const pegasus = [1, 0, -1].map(w => {
+    const g = new Graphics();
+    drawPegasus(g, w);
+    return bake(renderer, g, PEGASUS_FRAME);
+  });
+
+  const rg = new Graphics();
+  drawRainbow(rg);
+  const rainbow = bake(renderer, rg, RAINBOW_FRAME).texture;
+
+  return { body, tail, coin, pellet, santa, chimney, pegasus, rainbow };
 }
 
 /** Map a tail angle in [-MAX, MAX] to the nearest baked frame. */
