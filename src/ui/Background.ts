@@ -37,12 +37,5 @@ export class Background {
       g.ellipse(x - rw * 0.25, sandTop - rh * 0.35, rw * 0.5, rh * 0.4).fill({ color: 0xffffff, alpha: 0.12 });
     }
 
-    // seaweed
-    for (const fx of [0.3, 0.33, 0.62, 0.9]) {
-      const x = width * fx;
-      g.moveTo(x, sandTop + 4);
-      g.bezierCurveTo(x - 12, sandTop - 30, x + 12, sandTop - 60, x, sandTop - 90);
-      g.stroke({ width: 5, color: 0x2f8f5a, alpha: 0.8, cap: 'round' });
-    }
   }
 }

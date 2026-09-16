@@ -25,6 +25,7 @@ export class Fish {
   private tailFrame = -1;
   private tailPhase = 0;
   private pop = 1;    // scale multiplier for spawn / stage-up bounce
+  private dropping = false;
 
   private facingRight = true;
   private targetX: number;
@@ -58,8 +59,24 @@ export class Fish {
     this.targetY = y;
     this.pickTarget();
 
+  }
+
+  /** Spawn-in bounce for fish that appear in place. */
+  popIn() {
     this.pop = 0;
-    world.tweens.add(this, { pop: 1 }, { duration: 400, ease: ease.backOut });
+    this.world.tweens.add(this, { pop: 1 }, { duration: 400, ease: ease.backOut });
+  }
+
+  /** Fall in from above the surface, decelerate in the water, then start swimming. */
+  dropIn(landY: number) {
+    this.dropping = true;
+    this.facingRight = Math.random() < 0.5;
+    this.view.rotation = this.facingRight ? 1.1 : -1.1;   // nose down
+    this.world.tweens.add(this.view, { y: landY }, { duration: 900, ease: ease.quadOut });
+    this.world.tweens.add(this.view, { rotation: 0 }, {
+      duration: 900, ease: ease.quadOut,
+      onComplete: () => { this.dropping = false; this.pickTarget(); },
+    });
   }
 
   get x() { return this.view.x; }
@@ -72,6 +89,13 @@ export class Fish {
   update(dt: number) {
     if (this.dead) return;
     const W = this.world;
+
+    if (this.dropping) {
+      const s = G.stageScale[this.stage] * this.pop;
+      this.view.scale.set(this.facingRight ? s : -s, s);
+      this.animateTail(dt, 1);
+      return;
+    }
 
     // hunger
     if (W.hungerEnabled) {
@@ -134,17 +158,19 @@ export class Fish {
     const tilt = (dy / (dist || 1)) * 0.14;
     this.view.rotation = this.facingRight ? tilt : -tilt;
 
-    // tail flutter: frequency and amplitude scale with swim speed
-    const ratio = Math.min(this.speed / 150, 1);
+    this.animateTail(dt, Math.min(this.speed / 150, 1));
+    this.refreshLook();
+  }
+
+  /** Tail flutter: frequency and amplitude scale with `ratio` (0 idle → 1 full speed). */
+  private animateTail(dt: number, ratio: number) {
     this.tailPhase += (3 + ratio * 15) * dt;
     const angle = Math.sin(this.tailPhase) * (0.15 + ratio * 0.55);
     const frame = tailFrameFor(angle);
     if (frame !== this.tailFrame) {
       this.tailFrame = frame;
-      this.tail.texture = W.textures.tail[this.look][frame].texture;
+      this.tail.texture = this.world.textures.tail[this.look][frame].texture;
     }
-
-    this.refreshLook();
   }
 
   private eat() {
