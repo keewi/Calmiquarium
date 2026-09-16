@@ -28,6 +28,13 @@ export class Tweens {
     this.active.push({ target: t, from, to, duration: opts.duration, elapsed: 0, ease: opts.ease ?? ease.quadOut, onComplete: opts.onComplete });
   }
 
+  /** Drop every tween driving any of these targets (call before destroying them). */
+  cancel(...targets: object[]) {
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      if (targets.includes(this.active[i].target)) this.active.splice(i, 1);
+    }
+  }
+
   update(dt: number) {
     for (let i = this.active.length - 1; i >= 0; i--) {
       const tw = this.active[i];

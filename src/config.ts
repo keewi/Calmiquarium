@@ -46,7 +46,7 @@ export const CONFIG = {
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
 
-  shop: { guppy: 50, santa: 100, pegasus: 150, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+  shop: { guppy: 50, santa: 100, pegasus: 150, puppies: 120, eggPieces: [500, 750, 1000] },   // 3 pieces = win
 
   santa: {
     visitMs: 20000,             // time roaming before he heads home
@@ -61,6 +61,16 @@ export const CONFIG = {
     waveHz: 0.35,
     trailPoints: 40,
     trailSpacing: 7,   // px between ribbon samples → ~280px ribbon
+  },
+
+  puppies: {
+    count: 5,
+    speed: [110, 150],       // px/sec, per puppy
+    hopSpeed: [230, 300],    // launch velocity px/sec
+    gravity: 950,            // px/sec²
+    groundPauseMs: [40, 120],
+    barkEveryMs: [900, 2600],
+    staggerMs: 260,          // gap between each puppy entering
   },
 
   alien: {

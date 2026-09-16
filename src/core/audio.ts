@@ -64,6 +64,37 @@ class Audio {
     for (const o of [voice, lfo, trem]) { o.start(t); o.stop(t + dur + 0.05); }
   }
 
+  /** A happy little "arf-arf". `pitch` ~0.85–1.2 gives each puppy its own voice. */
+  yip(pitch = 1) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t0 = ctx.currentTime + 0.02;
+    for (const [dt, p] of [[0, 1], [0.14, 1.08]] as const) this.arf(ctx, t0 + dt, pitch * p);
+  }
+
+  private arf(ctx: AudioContext, t: number, pitch: number) {
+    const dur = 0.09;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0, t);
+    out.gain.linearRampToValueAtTime(0.16, t + 0.012);
+    out.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    out.connect(ctx.destination);
+
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1400 * pitch;
+    bp.Q.value = 1.2;
+    bp.connect(out);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(950 * pitch, t);
+    osc.frequency.exponentialRampToValueAtTime(560 * pitch, t + dur);
+    osc.connect(bp);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
   private ho(ctx: AudioContext, t: number, pitch: number) {
     const dur = 0.22;
     const out = ctx.createGain();

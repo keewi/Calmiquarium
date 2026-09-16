@@ -8,6 +8,7 @@ import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
 import { Pegasus } from '../entities/Pegasus';
 import { Pellet } from '../entities/Pellet';
+import { PuppyLitter } from '../entities/PuppyLitter';
 import { SantaVisit } from '../entities/SantaVisit';
 import { Background } from '../ui/Background';
 import { Sidebar } from '../ui/Sidebar';
@@ -33,6 +34,7 @@ export class World {
   pellets: Pellet[] = [];
   santa: SantaVisit | null = null;
   pegasi: Pegasus[] = [];
+  litters: PuppyLitter[] = [];
 
   gold = 0;
   hungerEnabled = false;
@@ -116,6 +118,9 @@ export class World {
     for (const p of this.pegasi) p.update(dt);
     compact(this.pegasi, p => p.done);
 
+    for (const l of this.litters) l.update(dt);
+    compact(this.litters, l => l.done);
+
     if (this.dirty) {
       this.saveTimer += dt;
       if (this.saveTimer >= 1) this.persist();
@@ -174,6 +179,15 @@ export class World {
     this.layers.fx.addChild(p.view);   // above fish and coins — it's flying past the glass
   }
 
+  buyPuppies() {
+    if (this.gold < CONFIG.shop.puppies) return;
+    audio.unlock();
+    this.spend(CONFIG.shop.puppies);
+    const litter = new PuppyLitter(this);
+    this.litters.push(litter);
+    this.layers.fish.addChild(litter.view);
+  }
+
   // ─── entities ───────────────────────────────────────────────────────
 
   spawnFish(stage: Stage, points: number, x?: number, y?: number): Fish {
@@ -206,6 +220,11 @@ export class World {
   }
 
   // ─── fx ─────────────────────────────────────────────────────────────
+
+  /** Put a short-lived effect on the fx layer (above everything but the UI). */
+  addFx(obj: Container) {
+    this.layers.fx.addChild(obj);
+  }
 
   private splash(x: number, y: number) {
     const fx = this.layers.fx;

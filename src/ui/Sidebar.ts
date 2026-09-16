@@ -18,6 +18,7 @@ export class Sidebar {
   private shopLabel: Text;
   private santaItem: ShopItem;
   private pegasusItem: ShopItem;
+  private puppiesItem: ShopItem;
   private freeGoldBtn: Container;
 
   constructor(private world: World) {
@@ -45,9 +46,11 @@ export class Sidebar {
     this.santaItem = new ShopItem(world.textures.santa.texture, 0.42, 'Santa', CONFIG.shop.santa, () => world.buySanta());
     this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
+    this.puppiesItem = new ShopItem(world.textures.puppy[0][1].texture, 0.75, 'Litter of puppies', CONFIG.shop.puppies, () => world.buyPuppies());
     this.freeGoldBtn = makeButton('+100 gold', () => world.addCoins(100));
 
-    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel, this.santaItem.view, this.pegasusItem.view, this.freeGoldBtn);
+    this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel,
+      this.santaItem.view, this.pegasusItem.view, this.puppiesItem.view, this.freeGoldBtn);
     this.refresh();
   }
 
@@ -67,7 +70,8 @@ export class Sidebar {
     this.shopLabel.position.set(PAD, 126);
     this.santaItem.view.position.set(PAD, 150);
     this.pegasusItem.view.position.set(PAD, 150 + ITEM_H + 10);
-    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 2 + 6);
+    this.puppiesItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 2);
+    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 3 + 6);
   }
 
   refresh() {
@@ -75,6 +79,7 @@ export class Sidebar {
     const w = this.world;
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
     this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
+    this.puppiesItem.setState(w.gold >= CONFIG.shop.puppies ? 'ready' : 'poor');
   }
 }
 
@@ -120,7 +125,7 @@ class ShopItem {
     sprite.scale.set(iconScale);
     sprite.position.set(30, ITEM_H / 2);
 
-    const label = new Text({ text: name, style: { fontFamily: 'Arial', fontSize: 16, fontWeight: 'bold', fill: 0xffffff } });
+    const label = new Text({ text: name, style: { fontFamily: 'Arial', fontSize: 15, fontWeight: 'bold', fill: 0xffffff } });
     label.position.set(60, 14);
 
     const coin = new Graphics().circle(0, 0, 6).fill(0xd4a017).circle(0, 0, 4.5).fill(0xffd54a);

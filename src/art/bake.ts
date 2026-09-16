@@ -26,6 +26,7 @@ export interface Textures {
   chimney: Baked;
   pegasus: Baked[];   // wing frames: up, mid, down
   rainbow: Texture;
+  puppy: Baked[][];   // [coat][frame: 0 grounded, 1 airborne]
 }
 
 const BASE = {
@@ -297,6 +298,58 @@ function drawRainbow(g: Graphics) {
 
 const RAINBOW_FRAME = new Rectangle(0, 0, 128, 24);
 
+// ─── puppy (faces +x, paws at origin) ─────────────────────────────────
+
+const PUPPY_COATS = [
+  { fur: 0xe8b45a, dark: 0xc48f3a, spots: null },
+  { fur: 0x8b5a2b, dark: 0x6b4220, spots: null },
+  { fur: 0xf4f0e8, dark: 0xd8d2c6, spots: 0x8b5a2b },
+];
+
+function drawPuppy(g: Graphics, coat: typeof PUPPY_COATS[number], airborne: boolean) {
+  const { fur, dark, spots } = coat;
+  const earLift = airborne ? -6 : 0;
+  const legSpread = airborne ? 4 : 0;
+
+  // tail: wags up when airborne
+  g.moveTo(-13, -14);
+  g.bezierCurveTo(-20, airborne ? -26 : -14, -22, airborne ? -20 : -8, airborne ? -19 : -22, airborne ? -24 : -6);
+  g.stroke({ width: 4, color: dark, cap: 'round' });
+
+  // back legs
+  g.roundRect(-11 - legSpread, -9, 5, 10, 2.5).fill(dark);
+  g.roundRect(-4, -9, 5, 10, 2.5).fill(dark);
+
+  // body
+  g.ellipse(0, -13, 14, 9).fill(fur);
+  g.ellipse(2, -9, 9, 4.5).fill({ color: 0xffffff, alpha: 0.25 });   // belly
+  if (spots !== null) {
+    g.ellipse(-5, -15, 5, 3.5).fill(spots);
+    g.circle(4, -18, 2.5).fill(spots);
+  }
+
+  // front legs
+  g.roundRect(3, -9, 5, 10, 2.5).fill(fur);
+  g.roundRect(9 + legSpread, -9, 5, 10, 2.5).fill(fur);
+
+  // collar
+  g.rect(6, -20, 8, 3).fill(0xd8262c);
+
+  // head
+  g.circle(13, -23, 8.5).fill(fur);
+  if (spots !== null) g.ellipse(11, -27, 4.5, 3.5).fill(spots);
+  g.ellipse(19, -20, 5, 3.6).fill(fur);            // muzzle
+  g.circle(22.5, -21, 1.8).fill(0x2a2a2a);         // nose
+  g.ellipse(19, -16.5, 2, 2.5).fill(0xf08aa0);      // tongue
+  g.circle(14, -25.5, 1.6).fill(0x2a2a2a);          // eye
+  g.circle(14.5, -26, 0.6).fill(0xffffff);
+
+  // floppy ear (flaps up in the air)
+  g.ellipse(7.5, -22 + earLift, 4, 7).fill(dark);
+}
+
+const PUPPY_FRAME = new Rectangle(-28, -40, 56, 42);
+
 // ─── entry point ──────────────────────────────────────────────────────
 
 export function bakeTextures(renderer: Renderer): Textures {
@@ -349,7 +402,13 @@ export function bakeTextures(renderer: Renderer): Textures {
   drawRainbow(rg);
   const rainbow = bake(renderer, rg, RAINBOW_FRAME).texture;
 
-  return { body, tail, coin, pellet, santa, chimney, pegasus, rainbow };
+  const puppy = PUPPY_COATS.map(coat => [false, true].map(air => {
+    const g = new Graphics();
+    drawPuppy(g, coat, air);
+    return bake(renderer, g, PUPPY_FRAME);
+  }));
+
+  return { body, tail, coin, pellet, santa, chimney, pegasus, rainbow, puppy };
 }
 
 /** Map a tail angle in [-MAX, MAX] to the nearest baked frame. */
