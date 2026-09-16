@@ -222,13 +222,14 @@ export class Fish {
     const minY = W.waterTop + m, maxY = W.sandTop - m;
 
     // near a wall? turn back. otherwise 50/50 keep heading or turn around
+    const minX = W.waterLeft + m, maxX = W.width - m;
     let goRight: boolean;
-    if (this.x < m + 60) goRight = true;
-    else if (this.x > W.width - m - 60) goRight = false;
+    if (this.x < minX + 60) goRight = true;
+    else if (this.x > maxX - 60) goRight = false;
     else goRight = Math.random() < 0.5 ? this.facingRight : !this.facingRight;
 
     const forward = pickInt(F.wanderForward);
-    this.targetX = clamp(this.x + (goRight ? forward : -forward), m, W.width - m);
+    this.targetX = clamp(this.x + (goRight ? forward : -forward), minX, maxX);
     this.targetY = clamp(this.y + pickInt(F.wanderDrift), minY, maxY);
     this.baseSpeed = pickFloat(F.wanderSpeed);
     this.wanderInterval = pickInt(F.wanderIntervalMs);

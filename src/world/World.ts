@@ -7,7 +7,7 @@ import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
 import { Pellet } from '../entities/Pellet';
 import { Background } from '../ui/Background';
-import { Hud } from '../ui/Hud';
+import { Sidebar } from '../ui/Sidebar';
 import { Seaweed } from '../ui/Seaweed';
 
 /** Remove items matching `dead` without allocating a new array. */
@@ -41,7 +41,7 @@ export class World {
   };
   private background = new Background();
   private seaweed: Seaweed;
-  private hud: Hud;
+  private sidebar: Sidebar;
   private dirty = false;
   private saveTimer = 0;
 
@@ -56,8 +56,8 @@ export class World {
     this.seaweed = new Seaweed(app.renderer);
     L.bg.addChild(this.seaweed.view);
 
-    this.hud = new Hud(this);
-    L.ui.addChild(this.hud.view);
+    this.sidebar = new Sidebar(this);
+    L.ui.addChild(this.sidebar.view);
 
     const save = loadSave();
     this.gold = save.coins;
@@ -69,7 +69,7 @@ export class World {
     app.stage.on('pointerdown', (e: FederatedPointerEvent) => this.onTap(e.global.x, e.global.y));
 
     this.resize(this.width, this.height);
-    this.hud.refresh();
+    this.sidebar.refresh();
 
     window.addEventListener('beforeunload', () => this.persist());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.persist(); });
@@ -77,6 +77,8 @@ export class World {
 
   get sandTop() { return this.height - CONFIG.layout.sandHeight; }
   get waterTop() { return CONFIG.layout.topBarHeight; }
+  get waterLeft() { return CONFIG.layout.sidebarWidth; }
+  get waterWidth() { return this.width - this.waterLeft; }
 
   // ─── lifecycle ──────────────────────────────────────────────────────
 
@@ -84,9 +86,9 @@ export class World {
     this.width = width;
     this.height = height;
     this.app.stage.hitArea = this.app.screen;
-    this.background.draw(width, height);
-    this.seaweed.layout(width, height);
-    this.hud.layout(width);
+    this.background.draw(this.waterLeft, width, height);
+    this.seaweed.layout(this.waterLeft, width, height);
+    this.sidebar.layout(height);
   }
 
   update(dt: number) {
@@ -109,8 +111,8 @@ export class World {
 
   // ─── input ──────────────────────────────────────────────────────────
 
-  private onTap(_x: number, y: number) {
-    if (y < this.waterTop || y > this.sandTop) return;
+  private onTap(x: number, y: number) {
+    if (x < this.waterLeft || y < this.waterTop || y > this.sandTop) return;
     if (this.gold < CONFIG.shop.guppy) return;
     this.spend(CONFIG.shop.guppy);
     this.plopFish();
@@ -118,7 +120,7 @@ export class World {
 
   /** A new guppy falls in from above the surface at the centre of the tank. */
   private plopFish() {
-    const cx = this.width / 2;
+    const cx = this.waterLeft + this.waterWidth / 2;
     const landY = this.waterTop + 90 + Math.random() * 60;
     const fish = this.spawnFish(Stage.Baby, 0, cx, this.waterTop - 30);
     fish.dropIn(landY);
@@ -129,13 +131,13 @@ export class World {
 
   addCoins(n: number) {
     this.gold += n;
-    this.hud.refresh();
+    this.sidebar.refresh();
     this.markDirty();
   }
 
   private spend(n: number) {
     this.gold -= n;
-    this.hud.refresh();
+    this.sidebar.refresh();
     this.markDirty();
   }
 
@@ -143,7 +145,7 @@ export class World {
 
   spawnFish(stage: Stage, points: number, x?: number, y?: number): Fish {
     const m = CONFIG.layout.margin + 40;
-    const fx = x ?? m + Math.random() * (this.width - m * 2);
+    const fx = x ?? this.waterLeft + m + Math.random() * (this.waterWidth - m * 2);
     const fy = y ?? this.waterTop + m + Math.random() * (this.sandTop - this.waterTop - m * 2);
     const fish = new Fish(this, fx, fy, stage, points);
     if (x === undefined) fish.popIn();

@@ -33,6 +33,7 @@ export class Seaweed {
   readonly view = new Container();
   private strands: Strand[] = [];
   private t = 0;
+  private left = 0;
   private width = 0;
   private height = 0;
 
@@ -55,7 +56,8 @@ export class Seaweed {
     }
   }
 
-  layout(width: number, height: number) {
+  layout(left: number, width: number, height: number) {
+    this.left = left;
     this.width = width;
     this.height = height;
     this.update(0);
@@ -65,7 +67,7 @@ export class Seaweed {
     this.t += dt;
     const base = this.height - CONFIG.layout.sandHeight + 4;
     for (const s of this.strands) {
-      const x0 = this.width * s.fx;
+      const x0 = this.left + (this.width - this.left) * s.fx;
       const seg = s.height / (SEGMENTS - 1);
       for (let i = 0; i < SEGMENTS; i++) {
         const k = i / (SEGMENTS - 1);           // 0 at base, 1 at tip

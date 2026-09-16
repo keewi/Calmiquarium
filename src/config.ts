@@ -5,7 +5,7 @@
 export const CONFIG = {
   start: { gold: 200, fish: 0 },
 
-  layout: { sandHeight: 60, topBarHeight: 0, margin: 40 },
+  layout: { sandHeight: 60, topBarHeight: 0, sidebarWidth: 220, margin: 40 },
 
   hunger: {
     // seconds
