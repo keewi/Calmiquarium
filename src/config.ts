@@ -3,9 +3,9 @@
  * Speeds are px/sec, timers are ms unless the key says otherwise.
  */
 export const CONFIG = {
-  start: { coins: 100, fish: 2 },
+  start: { gold: 200, fish: 0 },
 
-  layout: { sandHeight: 60, topBarHeight: 72, margin: 40 },
+  layout: { sandHeight: 60, topBarHeight: 0, margin: 40 },
 
   hunger: {
     // seconds
@@ -45,7 +45,7 @@ export const CONFIG = {
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
 
-  shop: { goldfish: 50, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+  shop: { guppy: 50, eggPieces: [500, 750, 1000] },   // 3 pieces = win
 
   alien: {
     spawnIntervalMs: 45000,

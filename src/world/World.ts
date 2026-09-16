@@ -1,7 +1,7 @@
-import { Application, Container, FederatedPointerEvent, Graphics, Text } from 'pixi.js';
+import { Application, Container, FederatedPointerEvent, Graphics } from 'pixi.js';
 import { CONFIG, CoinType, Stage } from '../config';
 import { bakeTextures, Textures } from '../art/bake';
-import { clearSave, loadSave, writeSave } from '../core/save';
+import { loadSave, writeSave } from '../core/save';
 import { ease, Tweens } from '../core/tween';
 import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
@@ -28,9 +28,8 @@ export class World {
   droppedCoins: Coin[] = [];
   pellets: Pellet[] = [];
 
-  coinsBalance = 0;
-  eggStage = 0;
-  hungerEnabled = true;
+  gold = 0;
+  hungerEnabled = false;
 
   width: number;
   height: number;
@@ -43,7 +42,6 @@ export class World {
   private hud: Hud;
   private dirty = false;
   private saveTimer = 0;
-  private winShown = false;
 
   constructor(private app: Application) {
     this.textures = bakeTextures(app.renderer);
@@ -57,13 +55,11 @@ export class World {
     this.hud = new Hud(this);
     L.ui.addChild(this.hud.view);
 
-    // load
     const save = loadSave();
-    this.coinsBalance = save.coins;
-    this.eggStage = save.eggStage;
+    this.gold = save.coins;
     for (const f of save.fish) this.spawnFish(f.stage as Stage, f.points);
 
-    // input: anything not caught by a coin/button lands here
+    // tap anywhere in the water → buy a guppy
     app.stage.eventMode = 'static';
     app.stage.hitArea = app.screen;
     app.stage.on('pointerdown', (e: FederatedPointerEvent) => this.onTap(e.global.x, e.global.y));
@@ -75,7 +71,6 @@ export class World {
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.persist(); });
   }
 
-  get coins() { return this.coinsBalance; }
   get sandTop() { return this.height - CONFIG.layout.sandHeight; }
   get waterTop() { return CONFIG.layout.topBarHeight; }
 
@@ -110,67 +105,36 @@ export class World {
 
   private onTap(x: number, y: number) {
     if (y < this.waterTop || y > this.sandTop) return;
-    if (this.coinsBalance < CONFIG.food.cost) return;
-    let active = 0;
-    for (const p of this.pellets) if (!p.consumed) active++;
-    if (active >= CONFIG.food.maxActive) return;
-    this.dropFood(x, y);
-  }
-
-  private dropFood(x: number, y: number) {
-    this.spend(CONFIG.food.cost);
-    const pellet = new Pellet(this, x, y);
-    this.pellets.push(pellet);
-    this.layers.pellets.addChild(pellet.view);
-    this.sparkle(x, y, 0xffffaa, 6, 8, 18);
+    if (this.gold < CONFIG.shop.guppy) return;
+    this.spend(CONFIG.shop.guppy);
+    const fish = this.spawnFish(Stage.Baby, 0, x, y);
+    this.sparkle(fish.x, fish.y, 0xaaddff, 8, 12, 30);
   }
 
   // ─── economy ────────────────────────────────────────────────────────
 
   addCoins(n: number) {
-    this.coinsBalance += n;
+    this.gold += n;
     this.hud.refresh();
     this.markDirty();
   }
 
   private spend(n: number) {
-    this.coinsBalance -= n;
+    this.gold -= n;
     this.hud.refresh();
     this.markDirty();
   }
 
-  buyFish() {
-    if (this.coinsBalance < CONFIG.shop.goldfish) return;
-    this.spend(CONFIG.shop.goldfish);
-    const fish = this.spawnFish(Stage.Baby, 0);
-    this.sparkle(fish.x, fish.y, 0xaaddff, 8, 20, 40);
-  }
-
-  buyEggPiece() {
-    const costs = CONFIG.shop.eggPieces;
-    if (this.eggStage >= costs.length) return;
-    const cost = costs[this.eggStage];
-    if (this.coinsBalance < cost) return;
-    this.spend(cost);
-    this.eggStage++;
-    this.hud.refresh();
-    if (this.eggStage >= costs.length) this.showWin();
-  }
-
-  restart() {
-    clearSave();
-    location.reload();
-  }
-
   // ─── entities ───────────────────────────────────────────────────────
 
-  spawnFish(stage: Stage, points: number): Fish {
+  spawnFish(stage: Stage, points: number, x?: number, y?: number): Fish {
     const m = CONFIG.layout.margin + 40;
-    const x = m + Math.random() * (this.width - m * 2);
-    const y = this.waterTop + m + Math.random() * (this.sandTop - this.waterTop - m * 2);
-    const fish = new Fish(this, x, y, stage, points);
+    const fx = x ?? m + Math.random() * (this.width - m * 2);
+    const fy = y ?? this.waterTop + m + Math.random() * (this.sandTop - this.waterTop - m * 2);
+    const fish = new Fish(this, fx, fy, stage, points);
     this.fish.push(fish);
     this.layers.fish.addChild(fish.view);
+    this.markDirty();
     return fish;
   }
 
@@ -206,33 +170,6 @@ export class World {
     }
   }
 
-  private showWin() {
-    if (this.winShown) return;
-    this.winShown = true;
-    const overlay = new Container();
-    overlay.eventMode = 'static';
-    overlay.on('pointerdown', (e: FederatedPointerEvent) => e.stopPropagation());
-
-    const dim = new Graphics().rect(0, 0, this.width, this.height).fill({ color: 0x000000, alpha: 0.55 });
-    const panel = new Graphics().roundRect(this.width / 2 - 180, this.height / 2 - 90, 360, 180, 18).fill(0x10264a)
-      .roundRect(this.width / 2 - 180, this.height / 2 - 90, 360, 180, 18).stroke({ width: 2, color: 0x6aa0e0 });
-    const title = new Text({ text: 'The egg hatched!', style: { fontFamily: 'Arial', fontSize: 30, fontWeight: 'bold', fill: 0xffd54a } });
-    title.anchor.set(0.5);
-    title.position.set(this.width / 2, this.height / 2 - 35);
-    const sub = new Text({ text: 'You win. The tank is yours — keep playing.', style: { fontFamily: 'Arial', fontSize: 15, fill: 0xcfe0f5 } });
-    sub.anchor.set(0.5);
-    sub.position.set(this.width / 2, this.height / 2 + 10);
-    const btn = new Text({ text: 'Continue', style: { fontFamily: 'Arial', fontSize: 18, fontWeight: 'bold', fill: 0xffffff } });
-    btn.anchor.set(0.5);
-    btn.position.set(this.width / 2, this.height / 2 + 55);
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.on('pointerdown', (e: FederatedPointerEvent) => { e.stopPropagation(); overlay.destroy({ children: true }); });
-
-    overlay.addChild(dim, panel, title, sub, btn);
-    this.layers.ui.addChild(overlay);
-  }
-
   // ─── persistence ────────────────────────────────────────────────────
 
   markDirty() { this.dirty = true; }
@@ -241,8 +178,8 @@ export class World {
     this.dirty = false;
     this.saveTimer = 0;
     writeSave({
-      coins: this.coinsBalance,
-      eggStage: this.eggStage,
+      coins: this.gold,
+      eggStage: 0,
       fish: this.fish.filter(f => !f.dead).map(f => ({ stage: f.stage, points: f.points })),
     });
   }

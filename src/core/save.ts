@@ -7,7 +7,7 @@ export interface SaveData { coins: number; fish: FishRecord[]; eggStage: number 
 
 function fresh(): SaveData {
   return {
-    coins: CONFIG.start.coins,
+    coins: CONFIG.start.gold,
     fish: Array.from({ length: CONFIG.start.fish }, () => ({ stage: 0, points: 0 })),
     eggStage: 0,
   };
@@ -25,7 +25,7 @@ export function loadSave(): SaveData {
         }))
       : [];
     return {
-      coins: typeof d.coins === 'number' ? d.coins : CONFIG.start.coins,
+      coins: typeof d.coins === 'number' ? d.coins : CONFIG.start.gold,
       fish,
       eggStage: typeof d.eggStage === 'number' ? d.eggStage : 0,
     };
