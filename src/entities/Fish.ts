@@ -35,7 +35,7 @@ export class Fish {
   private wanderTimer = 0;
   private wanderInterval = 0;
   private coinTimer = 0;
-  private coinInterval = pickInt(CONFIG.coins.dropIntervalMs);
+  private coinInterval = pickInt(CONFIG.coins.firstDropDelayMs);
 
   constructor(private world: World, x: number, y: number, stage: Stage = Stage.Baby, points = 0) {
     this.stage = stage;

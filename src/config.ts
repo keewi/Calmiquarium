@@ -20,7 +20,7 @@ export const CONFIG = {
     medToLargePellets: 6,
     largeToKingPoints: 75,    // then transforms on the next feed
     stageScale: [0.9, 1.4, 1.7, 2.1],
-    dropByStage: [null, 'silver', 'gold', 'diamond'],
+    dropByStage: ['gold', 'gold', 'gold', 'diamond'],   // every guppy drops gold for now
   },
 
   fish: {
@@ -36,11 +36,12 @@ export const CONFIG = {
   },
 
   coins: {
-    values: { silver: 15, gold: 35, diamond: 200 },
-    dropIntervalMs: [5000, 6000],   // medium+ only; starving fish stop dropping
-    fallSpeed: 370,
+    values: { silver: 5, gold: 10, diamond: 100 },
+    dropIntervalMs: [20000, 35000],   // per fish, staggered; starving fish stop dropping
+    firstDropDelayMs: [8000, 20000],  // a new fish's first coin comes sooner than a full interval
+    fallSpeed: 90,                    // slow sink so coins can be caught mid-water
     collectRadius: 28,
-    expireMs: 15000,
+    expireMs: 20000,                  // time on the sand before it vanishes
   },
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
