@@ -21,7 +21,7 @@ export const CONFIG = {
     largeToKingPoints: 75,    // then transforms on the next feed
     stageScale: [0.9, 1.4, 1.7, 2.1],
     dropByStage: ['gold', 'gold', 'gold', 'diamond'],   // every guppy drops gold for now
-    shinyChance: 0.25,         // a new goldfish is gold-metallic this often
+    shinyChance: 0.1,          // a new goldfish is gold-metallic this often
     shinyDrop: 'nugget',       // …and drops nuggets instead
   },
 
@@ -54,6 +54,16 @@ export const CONFIG = {
     catchRadius: 46,     // how close a fish must be to the net mouth
     sellPrice: 50,       // gold per fish sold
     capacity: 12,        // fish the bag holds at once
+
+    // dragging through water
+    follow: 9,           // how fast the net catches up to the cursor (1/sec)
+    leanPerVx: 0.0017,   // handle swing per px/sec of travel
+    maxLean: 0.38,       // radians
+    billowPerV: 0.045,   // bag offset per px/sec, opposite travel
+    maxBillow: 13,       // px
+    stretchPerV: 0.0005, // bag elongation along travel
+    bubbleSpeed: 110,    // px/sec before the net starts pulling bubbles
+    scoopSpeed: 20,      // px/sec of net travel needed to sweep fish up
   },
 
   santa: {

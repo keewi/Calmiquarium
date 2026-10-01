@@ -143,14 +143,25 @@ export class World {
     this.sidebar.refresh();
   }
 
-  /** Sell everything currently in the net. */
+  /**
+   * Cash in the catch and retire the net — it is a single-use tool, so this
+   * is also how an empty net is put away.
+   */
   sellCatch() {
-    if (!this.net) return;
-    const sold = this.net.takeAll();
-    if (sold.length === 0) return;
+    const net = this.net;
+    if (!net) return;
+
+    const sold = net.takeAll();
     for (const f of sold) this.removeFish(f);
-    this.addCoins(sold.length * CONFIG.net.sellPrice);
-    this.sparkle(this.net.view.x, this.net.view.y, 0xffd54a, 12, 16, 46);
+    if (sold.length > 0) {
+      this.addCoins(sold.length * CONFIG.net.sellPrice);
+      this.sparkle(net.view.x, net.view.y, 0xffd54a, 14, 16, 50);
+    }
+
+    this.net = null;
+    net.retire();
+    this.sidebar.refresh();
+    this.markDirty();
   }
 
   onNetChanged() {

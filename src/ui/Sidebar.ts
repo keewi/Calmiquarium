@@ -51,7 +51,7 @@ export class Sidebar {
     this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
     this.puppiesItem = new ShopItem(world.textures.puppy[0][1].texture, 0.75, 'Litter of puppies', CONFIG.shop.puppies, () => world.buyPuppies());
-    this.netItem = new ShopItem(world.textures.net.texture, 0.5, 'Scoop net', CONFIG.shop.net, () => world.buyNet());
+    this.netItem = new ShopItem(world.textures.net.texture, 0.5, 'Scoop net', CONFIG.shop.net, () => world.buyNet(), 'single use');
     this.sellBtn = makeButton('', () => world.sellCatch());
     this.freeGoldBtn = makeButton('+100 gold', () => world.addCoins(100));
 
@@ -89,11 +89,14 @@ export class Sidebar {
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
     this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
     this.puppiesItem.setState(w.gold >= CONFIG.shop.puppies ? 'ready' : 'poor');
-    this.netItem.setState(w.net ? 'owned' : w.gold >= CONFIG.shop.net ? 'ready' : 'poor');
+    this.netItem.setState(w.net ? 'in use' : w.gold >= CONFIG.shop.net ? 'ready' : 'poor');
 
+    // the net is single use, so this button is also how an empty one is put away
     const held = w.net?.caught.length ?? 0;
-    this.sellBtn.visible = held > 0;
-    setButtonLabel(this.sellBtn, `Sell ${held} fish  ·  ${held * CONFIG.net.sellPrice}`);
+    this.sellBtn.visible = w.net !== null;
+    setButtonLabel(this.sellBtn, held > 0
+      ? `Sell ${held} fish  ·  ${held * CONFIG.net.sellPrice}`
+      : 'Put net away');
   }
 }
 
@@ -139,9 +142,9 @@ class ShopItem {
   private bg = new Graphics();
   private status: Text;
   private hover = false;
-  private state: 'ready' | 'poor' | 'visiting' | 'owned' = 'ready';
+  private state: 'ready' | 'poor' | 'visiting' | 'in use' = 'ready';
 
-  constructor(icon: Texture, iconScale: number, name: string, cost: number, onBuy: () => void) {
+  constructor(icon: Texture, iconScale: number, name: string, cost: number, onBuy: () => void, private readyNote = '') {
     const sprite = new Sprite(icon);
     sprite.anchor.set(0.5, 0.5);
     sprite.scale.set(iconScale);
@@ -169,9 +172,12 @@ class ShopItem {
     this.draw();
   }
 
-  setState(state: 'ready' | 'poor' | 'visiting' | 'owned') {
+  setState(state: 'ready' | 'poor' | 'visiting' | 'in use') {
     this.state = state;
-    this.status.text = state === 'visiting' ? 'visiting…' : state === 'owned' ? 'owned' : state === 'poor' ? 'need gold' : '';
+    this.status.text = state === 'visiting' ? 'visiting…'
+      : state === 'in use' ? 'in use'
+      : state === 'poor' ? 'need gold'
+      : this.readyNote;
     this.view.alpha = state === 'ready' ? 1 : 0.55;
     this.view.cursor = state === 'ready' ? 'pointer' : 'default';
     this.draw();
