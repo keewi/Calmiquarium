@@ -16,6 +16,7 @@ export class Sidebar {
   private goldIcon = new Graphics();
   private goldText: Text;
   private shopLabel: Text;
+  private goldfishItem: ShopItem;
   private santaItem: ShopItem;
   private pegasusItem: ShopItem;
   private puppiesItem: ShopItem;
@@ -43,6 +44,7 @@ export class Sidebar {
       style: { fontFamily: 'Arial', fontSize: 12, fontWeight: 'bold', fill: 0x5f88b8, letterSpacing: 2 },
     });
 
+    this.goldfishItem = new ShopItem(world.textures.fishIcon[0].texture, 0.8, 'Goldfish', CONFIG.shop.goldfish, () => world.buyGoldfish());
     this.santaItem = new ShopItem(world.textures.santa.texture, 0.42, 'Santa', CONFIG.shop.santa, () => world.buySanta());
     this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
@@ -50,7 +52,7 @@ export class Sidebar {
     this.freeGoldBtn = makeButton('+100 gold', () => world.addCoins(100));
 
     this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel,
-      this.santaItem.view, this.pegasusItem.view, this.puppiesItem.view, this.freeGoldBtn);
+      this.goldfishItem.view, this.santaItem.view, this.pegasusItem.view, this.puppiesItem.view, this.freeGoldBtn);
     this.refresh();
   }
 
@@ -68,15 +70,17 @@ export class Sidebar {
 
     g.rect(PAD, 112, W - PAD * 2, 1).fill({ color: 0x2f5f9a, alpha: 0.7 });
     this.shopLabel.position.set(PAD, 126);
-    this.santaItem.view.position.set(PAD, 150);
-    this.pegasusItem.view.position.set(PAD, 150 + ITEM_H + 10);
-    this.puppiesItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 2);
-    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 3 + 6);
+    this.goldfishItem.view.position.set(PAD, 150);
+    this.santaItem.view.position.set(PAD, 150 + ITEM_H + 10);
+    this.pegasusItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 2);
+    this.puppiesItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 3);
+    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 4 + 6);
   }
 
   refresh() {
     this.goldText.text = String(this.world.gold);
     const w = this.world;
+    this.goldfishItem.setState(w.gold >= CONFIG.shop.goldfish ? 'ready' : 'poor');
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
     this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
     this.puppiesItem.setState(w.gold >= CONFIG.shop.puppies ? 'ready' : 'poor');

@@ -1,6 +1,6 @@
 import { Container, Sprite } from 'pixi.js';
 import { CONFIG, CoinType, Stage } from '../config';
-import { Look, tailFrameFor } from '../art/bake';
+import { FishKind, Look, tailFrameFor } from '../art/bake';
 import { approach, clamp, pickFloat, pickInt } from '../core/rng';
 import { ease } from '../core/tween';
 import type { World } from '../world/World';
@@ -37,13 +37,13 @@ export class Fish {
   private coinTimer = 0;
   private coinInterval = pickInt(CONFIG.coins.firstDropDelayMs);
 
-  constructor(private world: World, x: number, y: number, stage: Stage = Stage.Baby, points = 0) {
+  constructor(private world: World, x: number, y: number, stage: Stage = Stage.Baby, points = 0, readonly shiny = false) {
     this.stage = stage;
     this.points = points;
     this.readyToKing = stage === Stage.Large && points >= G.largeToKingPoints;
 
     const t = world.textures;
-    const tb = t.tail[0][0];
+    const tb = t.tail[this.kind][0][0];
     this.tail = new Sprite(tb.texture);
     this.tail.anchor.set(tb.anchorX, tb.anchorY);
     this.tail.x = -19;
@@ -81,7 +81,7 @@ export class Fish {
 
   get x() { return this.view.x; }
   get y() { return this.view.y; }
-  private get kind(): 0 | 1 { return this.stage === Stage.King ? 1 : 0; }
+  private get kind(): FishKind { return this.shiny ? 2 : this.stage === Stage.King ? 1 : 0; }
   private get isHungry() { return this.hunger <= H.hungry; }
   private get isStarving() { return this.hunger <= H.starving; }
   private get isDesperate() { return this.hunger <= H.desperate; }
@@ -106,7 +106,7 @@ export class Fish {
     }
 
     // coin drops
-    const drop = G.dropByStage[this.stage] as CoinType | null;
+    const drop = (this.shiny ? G.shinyDrop : G.dropByStage[this.stage]) as CoinType | null;
     if (drop && !(W.hungerEnabled && this.isStarving)) {
       this.coinTimer += dt * 1000;
       if (this.coinTimer >= this.coinInterval) {
@@ -169,7 +169,7 @@ export class Fish {
     const frame = tailFrameFor(angle);
     if (frame !== this.tailFrame) {
       this.tailFrame = frame;
-      this.tail.texture = this.world.textures.tail[this.look][frame].texture;
+      this.tail.texture = this.world.textures.tail[this.kind][this.look][frame].texture;
     }
   }
 

@@ -18,8 +18,9 @@ export const TAIL_MAX_ANGLE = 0.7; // radians, either side
 export interface Baked { texture: Texture; anchorX: number; anchorY: number }
 
 export interface Textures {
-  body: Baked[][];  // [kind: 0 guppy, 1 king][look]
-  tail: Baked[][];  // [look][frame]
+  body: Baked[][];    // [kind][look]
+  tail: Baked[][][];  // [kind][look][frame]
+  fishIcon: Baked[];  // [kind] — body + tail in one piece, for shop cards
   coin: Record<CoinType, Baked>;
   pellet: Baked;
   santa: Baked;
@@ -37,11 +38,20 @@ const KING = {
   body: 0xff5520, dark: 0xcc3a10, belly: 0xffaa66,
   fin: 0xff4410, finHi: 0xff8844, tail: 0xff5520, tailHi: 0xff8844,
 };
+const SHINY = {
+  body: 0xf5c518, dark: 0xb8860b, belly: 0xfff0a8,
+  fin: 0xe0ac10, finHi: 0xfff3b8, tail: 0xf0bc14, tailHi: 0xfff0a8,
+};
+
+/** 0 plain guppy, 1 king, 2 shiny gold-metallic. */
+export type FishKind = 0 | 1 | 2;
+export const FISH_KINDS: FishKind[] = [0, 1, 2];
+const KIND_PALETTE = [BASE, KING, SHINY];
 
 type Palette = typeof BASE;
 
-function paletteFor(kind: 0 | 1, look: Look): Palette {
-  const base = kind === 1 ? KING : BASE;
+function paletteFor(kind: FishKind, look: Look): Palette {
+  const base = KIND_PALETTE[kind];
   const tint = LOOK_TINT[look];
   if (tint === null) return base;
   const out = { ...base };
@@ -57,7 +67,7 @@ function bake(renderer: Renderer, target: Container, frame: Rectangle): Baked {
 
 // ─── fish body (faces +x, tail root at x≈-19) ─────────────────────────
 
-function drawBody(g: Graphics, p: Palette, king: boolean) {
+function drawBody(g: Graphics, p: Palette, king: boolean, shiny = false) {
   // dorsal fin
   g.poly([-6, -10, 2, -20, 10, -9]).fill(p.fin);
   g.poly([-4, -11, 2, -17, 7, -10]).fill({ color: p.finHi, alpha: 0.6 });
@@ -77,6 +87,16 @@ function drawBody(g: Graphics, p: Palette, king: boolean) {
   g.circle(13.8, -4.8, 0.7).fill(0xffffff);
   // mouth
   g.moveTo(19, 1).lineTo(22, 2).stroke({ width: 1.2, color: p.dark });
+
+  if (shiny) {
+    // metallic sheen: a bright band across the flank plus sparkles
+    g.ellipse(-4, -4, 13, 3.5).fill({ color: 0xffffff, alpha: 0.5 });
+    g.ellipse(5, 1, 7, 2).fill({ color: 0xffffff, alpha: 0.3 });
+    for (const [sx, sy, sr] of [[-12, -8, 1.8], [7, -9, 1.3], [-2, 6, 1.1]] as const) {
+      g.poly([sx, sy - sr * 2, sx + sr, sy, sx, sy + sr * 2, sx - sr, sy]).fill({ color: 0xffffff, alpha: 0.9 });
+    }
+    g.ellipse(0, 0, 22, 13).stroke({ width: 1.2, color: 0xfff3b8, alpha: 0.8 });
+  }
 
   if (king) {
     g.poly([-6, -22, -3, -30, 0, -23, 3, -31, 6, -23, 9, -30, 11, -22]).fill(0xffd700);
@@ -120,12 +140,41 @@ function drawTail(g: Graphics, p: Palette, angle: number) {
 
 const TAIL_FRAME = new Rectangle(-20, -18, 24, 36);
 
+/** Body and tail composed into one piece, for use outside the game world. */
+function drawWholeFish(p: Palette, kind: FishKind): Container {
+  const c = new Container();
+  const tg = new Graphics();
+  drawTail(tg, p, 0);
+  tg.x = -19;
+  const bg = new Graphics();
+  drawBody(bg, p, kind === 1, kind === 2);
+  c.addChild(tg, bg);
+  return c;
+}
+
+const ICON_FRAME = new Rectangle(-42, -26, 68, 46);
+
 // ─── coins ────────────────────────────────────────────────────────────
 
 function drawCoin(type: CoinType): Container {
   const c = new Container();
   const g = new Graphics();
   const value = CONFIG.coins.values[type];
+
+  if (type === 'nugget') {
+    // a chunky irregular lump of raw gold
+    g.poly([-14, -2, -9, -10, -1, -13, 8, -11, 14, -4, 13, 5, 5, 12, -5, 12, -13, 6]).fill(0xb8860b);
+    g.poly([-11, -2, -7, -9, 0, -11, 7, -9, 11, -3, 10, 4, 3, 10, -4, 10, -11, 4]).fill(0xf5c518);
+    // facets
+    g.poly([-7, -9, 0, -11, 2, -4, -5, -2]).fill({ color: 0xffe066, alpha: 0.95 });
+    g.poly([2, -4, 7, -9, 11, -3, 6, 1]).fill({ color: 0xffd23f, alpha: 0.9 });
+    g.poly([-5, -2, 2, -4, 3, 6, -4, 8]).fill({ color: 0xd9a406, alpha: 0.85 });
+    // specular sparkles
+    g.poly([-6, -9, -4, -6, -6, -3, -8, -6]).fill({ color: 0xffffff, alpha: 0.95 });
+    g.poly([6, 2, 7.5, 4, 6, 6, 4.5, 4]).fill({ color: 0xffffff, alpha: 0.8 });
+    c.addChild(g);
+    return c;
+  }
 
   if (type === 'diamond') {
     const r = 14;
@@ -354,26 +403,28 @@ const PUPPY_FRAME = new Rectangle(-28, -40, 56, 42);
 
 export function bakeTextures(renderer: Renderer): Textures {
   const body: Baked[][] = [];
-  for (const kind of [0, 1] as const) {
+  const tail: Baked[][][] = [];
+  for (const kind of FISH_KINDS) {
     body[kind] = [];
+    tail[kind] = [];
     for (const look of LOOKS) {
-      const g = new Graphics();
-      drawBody(g, paletteFor(kind, look), kind === 1);
-      body[kind][look] = bake(renderer, g, BODY_FRAME);
+      const p = paletteFor(kind, look);
+
+      const bg = new Graphics();
+      drawBody(bg, p, kind === 1, kind === 2);
+      body[kind][look] = bake(renderer, bg, BODY_FRAME);
+
+      tail[kind][look] = [];
+      for (let f = 0; f < TAIL_FRAMES; f++) {
+        const angle = -TAIL_MAX_ANGLE + (2 * TAIL_MAX_ANGLE * f) / (TAIL_FRAMES - 1);
+        const tg = new Graphics();
+        drawTail(tg, p, angle);
+        tail[kind][look][f] = bake(renderer, tg, TAIL_FRAME);
+      }
     }
   }
 
-  const tail: Baked[][] = [];
-  for (const look of LOOKS) {
-    tail[look] = [];
-    const p = paletteFor(0, look);
-    for (let f = 0; f < TAIL_FRAMES; f++) {
-      const angle = -TAIL_MAX_ANGLE + (2 * TAIL_MAX_ANGLE * f) / (TAIL_FRAMES - 1);
-      const g = new Graphics();
-      drawTail(g, p, angle);
-      tail[look][f] = bake(renderer, g, TAIL_FRAME);
-    }
-  }
+  const fishIcon = FISH_KINDS.map(kind => bake(renderer, drawWholeFish(paletteFor(kind, 0), kind), ICON_FRAME));
 
   const coin = {} as Record<CoinType, Baked>;
   for (const type of Object.keys(CONFIG.coins.values) as CoinType[]) {
@@ -408,7 +459,7 @@ export function bakeTextures(renderer: Renderer): Textures {
     return bake(renderer, g, PUPPY_FRAME);
   }));
 
-  return { body, tail, coin, pellet, santa, chimney, pegasus, rainbow, puppy };
+  return { body, tail, fishIcon, coin, pellet, santa, chimney, pegasus, rainbow, puppy };
 }
 
 /** Map a tail angle in [-MAX, MAX] to the nearest baked frame. */

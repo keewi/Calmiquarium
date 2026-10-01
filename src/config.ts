@@ -21,6 +21,8 @@ export const CONFIG = {
     largeToKingPoints: 75,    // then transforms on the next feed
     stageScale: [0.9, 1.4, 1.7, 2.1],
     dropByStage: ['gold', 'gold', 'gold', 'diamond'],   // every guppy drops gold for now
+    shinyChance: 0.1,          // a new goldfish is gold-metallic this often
+    shinyDrop: 'nugget',       // …and drops nuggets instead
   },
 
   fish: {
@@ -36,7 +38,7 @@ export const CONFIG = {
   },
 
   coins: {
-    values: { silver: 5, gold: 10, diamond: 100 },
+    values: { silver: 5, gold: 10, diamond: 100, nugget: 1000 },
     dropIntervalMs: [20000, 35000],   // per fish, staggered; starving fish stop dropping
     firstDropDelayMs: [8000, 20000],  // a new fish's first coin comes sooner than a full interval
     fallSpeed: 90,                    // slow sink so coins can be caught mid-water
@@ -46,7 +48,7 @@ export const CONFIG = {
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
 
-  shop: { guppy: 50, santa: 100, pegasus: 150, puppies: 120, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+  shop: { goldfish: 50, santa: 100, pegasus: 150, puppies: 120, eggPieces: [500, 750, 1000] },   // 3 pieces = win
 
   santa: {
     visitMs: 20000,             // time roaming before he heads home

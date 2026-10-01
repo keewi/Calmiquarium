@@ -2,7 +2,7 @@ import { CONFIG } from '../config';
 
 const KEY = 'calmiquarium-save';
 
-export interface FishRecord { stage: number; points: number }
+export interface FishRecord { stage: number; points: number; shiny?: boolean }
 export interface SaveData { coins: number; fish: FishRecord[]; eggStage: number }
 
 function fresh(): SaveData {
@@ -22,6 +22,7 @@ export function loadSave(): SaveData {
       ? d.fish.map((f: any) => ({
           stage: typeof f?.stage === 'number' ? f.stage : 0,
           points: typeof f?.points === 'number' ? f.points : 0,
+          shiny: f?.shiny === true,
         }))
       : [];
     return {

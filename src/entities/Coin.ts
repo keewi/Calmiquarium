@@ -11,7 +11,7 @@ export class Coin {
 
   constructor(private world: World, x: number, y: number, readonly type: CoinType) {
     const b = world.textures.coin[type];
-    const scale = type === 'diamond' ? 1.6 : 1.4;
+    const scale = type === 'nugget' ? 1.75 : type === 'diamond' ? 1.6 : 1.4;
     this.view = new Sprite(b.texture);
     this.view.anchor.set(b.anchorX, b.anchorY);
     this.view.position.set(x, y);

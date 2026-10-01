@@ -68,7 +68,7 @@ export class World {
 
     const save = loadSave();
     this.gold = save.coins;
-    for (const f of save.fish) this.spawnFish(f.stage as Stage, f.points);
+    for (const f of save.fish) this.spawnFish(f.stage as Stage, f.points, undefined, undefined, f.shiny);
 
     // tap anywhere in the water → buy a guppy
     app.stage.eventMode = 'static';
@@ -131,18 +131,26 @@ export class World {
 
   private onTap(x: number, y: number) {
     if (x < this.waterLeft || y < this.waterTop || y > this.sandTop) return;
-    if (this.gold < CONFIG.shop.guppy) return;
-    this.spend(CONFIG.shop.guppy);
+    if (this.gold < CONFIG.shop.goldfish) return;
+    this.spend(CONFIG.shop.goldfish);
     this.plopFish();
   }
 
-  /** A new guppy falls in from above the surface at the centre of the tank. */
+  buyGoldfish() {
+    if (this.gold < CONFIG.shop.goldfish) return;
+    this.spend(CONFIG.shop.goldfish);
+    this.plopFish();
+  }
+
+  /** A new goldfish falls in from above the surface at the centre of the tank. */
   private plopFish() {
     const cx = this.waterLeft + this.waterWidth / 2;
     const landY = this.waterTop + 90 + Math.random() * 60;
-    const fish = this.spawnFish(Stage.Baby, 0, cx, this.waterTop - 30);
+    const shiny = Math.random() < CONFIG.growth.shinyChance;
+    const fish = this.spawnFish(Stage.Baby, 0, cx, this.waterTop - 30, shiny);
     fish.dropIn(landY);
     this.splash(cx, this.waterTop + 6);
+    if (shiny) this.sparkle(cx, this.waterTop + 40, 0xffe066, 16, 20, 60);
   }
 
   // ─── economy ────────────────────────────────────────────────────────
@@ -190,11 +198,11 @@ export class World {
 
   // ─── entities ───────────────────────────────────────────────────────
 
-  spawnFish(stage: Stage, points: number, x?: number, y?: number): Fish {
+  spawnFish(stage: Stage, points: number, x?: number, y?: number, shiny = false): Fish {
     const m = CONFIG.layout.margin + 40;
     const fx = x ?? this.waterLeft + m + Math.random() * (this.waterWidth - m * 2);
     const fy = y ?? this.waterTop + m + Math.random() * (this.sandTop - this.waterTop - m * 2);
-    const fish = new Fish(this, fx, fy, stage, points);
+    const fish = new Fish(this, fx, fy, stage, points, shiny);
     if (x === undefined) fish.popIn();
     this.fish.push(fish);
     this.layers.fish.addChild(fish.view);
@@ -287,7 +295,7 @@ export class World {
     writeSave({
       coins: this.gold,
       eggStage: 0,
-      fish: this.fish.filter(f => !f.dead).map(f => ({ stage: f.stage, points: f.points })),
+      fish: this.fish.filter(f => !f.dead).map(f => ({ stage: f.stage, points: f.points, shiny: f.shiny })),
     });
   }
 }
