@@ -20,6 +20,8 @@ export class Sidebar {
   private santaItem: ShopItem;
   private pegasusItem: ShopItem;
   private puppiesItem: ShopItem;
+  private netItem: ShopItem;
+  private sellBtn: Container;
   private freeGoldBtn: Container;
 
   constructor(private world: World) {
@@ -49,10 +51,13 @@ export class Sidebar {
     this.pegasusItem = new ShopItem(world.textures.pegasus[1].texture, 0.4, 'Pegasus', CONFIG.shop.pegasus, () => world.buyPegasus());
 
     this.puppiesItem = new ShopItem(world.textures.puppy[0][1].texture, 0.75, 'Litter of puppies', CONFIG.shop.puppies, () => world.buyPuppies());
+    this.netItem = new ShopItem(world.textures.net.texture, 0.5, 'Scoop net', CONFIG.shop.net, () => world.buyNet());
+    this.sellBtn = makeButton('', () => world.sellCatch());
     this.freeGoldBtn = makeButton('+100 gold', () => world.addCoins(100));
 
     this.view.addChild(this.panel, this.title, this.goldIcon, this.goldText, this.shopLabel,
-      this.goldfishItem.view, this.santaItem.view, this.pegasusItem.view, this.puppiesItem.view, this.freeGoldBtn);
+      this.goldfishItem.view, this.santaItem.view, this.pegasusItem.view, this.puppiesItem.view,
+      this.netItem.view, this.sellBtn, this.freeGoldBtn);
     this.refresh();
   }
 
@@ -70,11 +75,11 @@ export class Sidebar {
 
     g.rect(PAD, 112, W - PAD * 2, 1).fill({ color: 0x2f5f9a, alpha: 0.7 });
     this.shopLabel.position.set(PAD, 126);
-    this.goldfishItem.view.position.set(PAD, 150);
-    this.santaItem.view.position.set(PAD, 150 + ITEM_H + 10);
-    this.pegasusItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 2);
-    this.puppiesItem.view.position.set(PAD, 150 + (ITEM_H + 10) * 3);
-    this.freeGoldBtn.position.set(PAD, 150 + (ITEM_H + 10) * 4 + 6);
+    const step = ITEM_H + 10;
+    const cards = [this.goldfishItem, this.santaItem, this.pegasusItem, this.puppiesItem, this.netItem];
+    cards.forEach((c, i) => c.view.position.set(PAD, 150 + step * i));
+    this.sellBtn.position.set(PAD, 150 + step * cards.length);
+    this.freeGoldBtn.position.set(PAD, 150 + step * cards.length + 46);
   }
 
   refresh() {
@@ -84,10 +89,22 @@ export class Sidebar {
     this.santaItem.setState(w.santa ? 'visiting' : w.gold >= CONFIG.shop.santa ? 'ready' : 'poor');
     this.pegasusItem.setState(w.gold >= CONFIG.shop.pegasus ? 'ready' : 'poor');
     this.puppiesItem.setState(w.gold >= CONFIG.shop.puppies ? 'ready' : 'poor');
+    this.netItem.setState(w.net ? 'owned' : w.gold >= CONFIG.shop.net ? 'ready' : 'poor');
+
+    const held = w.net?.caught.length ?? 0;
+    this.sellBtn.visible = held > 0;
+    setButtonLabel(this.sellBtn, `Sell ${held} fish  ·  ${held * CONFIG.net.sellPrice}`);
   }
 }
 
 // ─── plain button ─────────────────────────────────────────────────────
+
+const BUTTON_LABEL = new WeakMap<Container, Text>();
+
+export function setButtonLabel(btn: Container, label: string) {
+  const t = BUTTON_LABEL.get(btn);
+  if (t) t.text = label;
+}
 
 function makeButton(label: string, onClick: () => void): Container {
   const w = W - PAD * 2, h = 36;
@@ -103,6 +120,7 @@ function makeButton(label: string, onClick: () => void): Container {
   text.anchor.set(0.5);
   text.position.set(w / 2, h / 2);
   view.addChild(bg, text);
+  BUTTON_LABEL.set(view, text);
   view.eventMode = 'static';
   view.cursor = 'pointer';
   view.on('pointerover', () => draw(true));
@@ -121,7 +139,7 @@ class ShopItem {
   private bg = new Graphics();
   private status: Text;
   private hover = false;
-  private state: 'ready' | 'poor' | 'visiting' = 'ready';
+  private state: 'ready' | 'poor' | 'visiting' | 'owned' = 'ready';
 
   constructor(icon: Texture, iconScale: number, name: string, cost: number, onBuy: () => void) {
     const sprite = new Sprite(icon);
@@ -151,9 +169,9 @@ class ShopItem {
     this.draw();
   }
 
-  setState(state: 'ready' | 'poor' | 'visiting') {
+  setState(state: 'ready' | 'poor' | 'visiting' | 'owned') {
     this.state = state;
-    this.status.text = state === 'visiting' ? 'visiting…' : state === 'poor' ? 'need gold' : '';
+    this.status.text = state === 'visiting' ? 'visiting…' : state === 'owned' ? 'owned' : state === 'poor' ? 'need gold' : '';
     this.view.alpha = state === 'ready' ? 1 : 0.55;
     this.view.cursor = state === 'ready' ? 'pointer' : 'default';
     this.draw();

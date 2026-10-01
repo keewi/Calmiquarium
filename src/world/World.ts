@@ -8,6 +8,7 @@ import { Coin } from '../entities/Coin';
 import { Fish } from '../entities/Fish';
 import { Pegasus } from '../entities/Pegasus';
 import { Pellet } from '../entities/Pellet';
+import { ScoopNet } from '../entities/ScoopNet';
 import { PuppyLitter } from '../entities/PuppyLitter';
 import { SantaVisit } from '../entities/SantaVisit';
 import { Background } from '../ui/Background';
@@ -35,6 +36,7 @@ export class World {
   santa: SantaVisit | null = null;
   pegasi: Pegasus[] = [];
   litters: PuppyLitter[] = [];
+  net: ScoopNet | null = null;
 
   gold = 0;
   hungerEnabled = false;
@@ -68,6 +70,7 @@ export class World {
 
     const save = loadSave();
     this.gold = save.coins;
+    if (save.netOwned) this.addNet();
     for (const f of save.fish) this.spawnFish(f.stage as Stage, f.points, undefined, undefined, f.shiny);
 
     // interactive children (coins, shop cards) handle their own taps
@@ -118,6 +121,8 @@ export class World {
     for (const l of this.litters) l.update(dt);
     compact(this.litters, l => l.done);
 
+    this.net?.update(dt);
+
     if (this.dirty) {
       this.saveTimer += dt;
       if (this.saveTimer >= 1) this.persist();
@@ -125,6 +130,32 @@ export class World {
   }
 
   // ─── shop ───────────────────────────────────────────────────────────
+
+  buyNet() {
+    if (this.net || this.gold < CONFIG.shop.net) return;
+    this.spend(CONFIG.shop.net);
+    this.addNet();
+  }
+
+  private addNet() {
+    this.net = new ScoopNet(this);
+    this.layers.fx.addChild(this.net.view);   // rides above the fish
+    this.sidebar.refresh();
+  }
+
+  /** Sell everything currently in the net. */
+  sellCatch() {
+    if (!this.net) return;
+    const sold = this.net.takeAll();
+    if (sold.length === 0) return;
+    for (const f of sold) this.removeFish(f);
+    this.addCoins(sold.length * CONFIG.net.sellPrice);
+    this.sparkle(this.net.view.x, this.net.view.y, 0xffd54a, 12, 16, 46);
+  }
+
+  onNetChanged() {
+    this.sidebar.refresh();
+  }
 
   buyGoldfish() {
     if (this.gold < CONFIG.shop.goldfish) return;
@@ -285,6 +316,7 @@ export class World {
     writeSave({
       coins: this.gold,
       eggStage: 0,
+      netOwned: this.net !== null,
       fish: this.fish.filter(f => !f.dead).map(f => ({ stage: f.stage, points: f.points, shiny: f.shiny })),
     });
   }

@@ -3,13 +3,14 @@ import { CONFIG } from '../config';
 const KEY = 'calmiquarium-save';
 
 export interface FishRecord { stage: number; points: number; shiny?: boolean }
-export interface SaveData { coins: number; fish: FishRecord[]; eggStage: number }
+export interface SaveData { coins: number; fish: FishRecord[]; eggStage: number; netOwned: boolean }
 
 function fresh(): SaveData {
   return {
     coins: CONFIG.start.gold,
     fish: Array.from({ length: CONFIG.start.fish }, () => ({ stage: 0, points: 0 })),
     eggStage: 0,
+    netOwned: false,
   };
 }
 
@@ -29,6 +30,7 @@ export function loadSave(): SaveData {
       coins: typeof d.coins === 'number' ? d.coins : CONFIG.start.gold,
       fish,
       eggStage: typeof d.eggStage === 'number' ? d.eggStage : 0,
+      netOwned: d.netOwned === true,
     };
   } catch {
     return fresh();

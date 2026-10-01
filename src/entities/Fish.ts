@@ -19,6 +19,7 @@ export class Fish {
   points: number;
   hunger = H.max;     // seconds remaining
   dead = false;
+  caught = false;     // sitting in the scoop net
 
   private readyToKing: boolean;
   private look: Look = 0;
@@ -87,7 +88,7 @@ export class Fish {
   private get isDesperate() { return this.hunger <= H.desperate; }
 
   update(dt: number) {
-    if (this.dead) return;
+    if (this.dead || this.caught) return;
     const W = this.world;
 
     if (this.dropping) {
@@ -261,4 +262,14 @@ export class Fish {
 
   /** Instant death (e.g. eaten). */
   kill() { if (!this.dead) this.die(); }
+
+  /** Scooped into the net: stop swimming and drop any in-flight animation. */
+  capture() {
+    this.caught = true;
+    this.dropping = false;
+    this.world.tweens.cancel(this.view, this);
+    this.view.rotation = 0;
+    const s = G.stageScale[this.stage] * 0.8;
+    this.view.scale.set(s, s);
+  }
 }

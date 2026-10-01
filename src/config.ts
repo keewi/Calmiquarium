@@ -48,7 +48,13 @@ export const CONFIG = {
 
   food: { cost: 5, maxActive: 3, fallSpeed: 80 },
 
-  shop: { goldfish: 50, santa: 100, pegasus: 150, puppies: 120, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+  shop: { goldfish: 50, santa: 100, pegasus: 150, puppies: 120, net: 500, eggPieces: [500, 750, 1000] },   // 3 pieces = win
+
+  net: {
+    catchRadius: 46,     // how close a fish must be to the net mouth
+    sellPrice: 50,       // gold per fish sold
+    capacity: 12,        // fish the bag holds at once
+  },
 
   santa: {
     visitMs: 20000,             // time roaming before he heads home

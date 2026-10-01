@@ -35,6 +35,11 @@ export class Tweens {
     }
   }
 
+  /** True while any tween is still driving this target. */
+  isTweening(target: object) {
+    return this.active.some(t => t.target === (target as Record<string, number>));
+  }
+
   update(dt: number) {
     for (let i = this.active.length - 1; i >= 0; i--) {
       const tw = this.active[i];

@@ -28,6 +28,7 @@ export interface Textures {
   pegasus: Baked[];   // wing frames: up, mid, down
   rainbow: Texture;
   puppy: Baked[][];   // [coat][frame: 0 grounded, 1 airborne]
+  net: Baked;
 }
 
 const BASE = {
@@ -399,6 +400,37 @@ function drawPuppy(g: Graphics, coat: typeof PUPPY_COATS[number], airborne: bool
 
 const PUPPY_FRAME = new Rectangle(-28, -40, 56, 42);
 
+// ─── scoop net (hoop centred on origin, handle down-right) ────────────
+
+function drawNet(g: Graphics) {
+  const R = 38, wood = 0xa9743f, woodDark = 0x7d5229, rim = 0xd8dde3;
+
+  // handle
+  g.moveTo(26, 26).lineTo(72, 72);
+  g.stroke({ width: 9, color: woodDark, cap: 'round' });
+  g.moveTo(26, 26).lineTo(72, 72);
+  g.stroke({ width: 6, color: wood, cap: 'round' });
+  g.circle(72, 72, 5).fill(woodDark);
+
+  // mesh bag
+  g.circle(0, 0, R - 3).fill({ color: 0xeaf4ff, alpha: 0.22 });
+  for (let i = -3; i <= 3; i++) {
+    const o = i * 10;
+    const h = Math.sqrt(Math.max(0, (R - 4) * (R - 4) - o * o));
+    g.moveTo(o, -h).lineTo(o, h);
+    g.stroke({ width: 1, color: 0xffffff, alpha: 0.35 });
+    g.moveTo(-h, o).lineTo(h, o);
+    g.stroke({ width: 1, color: 0xffffff, alpha: 0.35 });
+  }
+
+  // hoop
+  g.circle(0, 0, R).stroke({ width: 5, color: rim });
+  g.circle(0, 0, R).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+  g.circle(0, 0, R - 5).stroke({ width: 1.5, color: 0x9aa7b5, alpha: 0.6 });
+}
+
+const NET_FRAME = new Rectangle(-46, -46, 130, 130);
+
 // ─── entry point ──────────────────────────────────────────────────────
 
 export function bakeTextures(renderer: Renderer): Textures {
@@ -459,7 +491,11 @@ export function bakeTextures(renderer: Renderer): Textures {
     return bake(renderer, g, PUPPY_FRAME);
   }));
 
-  return { body, tail, fishIcon, coin, pellet, santa, chimney, pegasus, rainbow, puppy };
+  const ng = new Graphics();
+  drawNet(ng);
+  const net = bake(renderer, ng, NET_FRAME);
+
+  return { body, tail, fishIcon, net, coin, pellet, santa, chimney, pegasus, rainbow, puppy };
 }
 
 /** Map a tail angle in [-MAX, MAX] to the nearest baked frame. */
