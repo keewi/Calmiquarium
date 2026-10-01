@@ -1,4 +1,4 @@
-import { Application, Container, FederatedPointerEvent, Graphics } from 'pixi.js';
+import { Application, Container, Graphics } from 'pixi.js';
 import { CONFIG, CoinType, Stage } from '../config';
 import { bakeTextures, Textures } from '../art/bake';
 import { audio } from '../core/audio';
@@ -52,7 +52,7 @@ export class World {
   private dirty = false;
   private saveTimer = 0;
 
-  constructor(private app: Application) {
+  constructor(app: Application) {
     this.textures = bakeTextures(app.renderer);
     this.width = app.screen.width;
     this.height = app.screen.height;
@@ -70,10 +70,8 @@ export class World {
     this.gold = save.coins;
     for (const f of save.fish) this.spawnFish(f.stage as Stage, f.points, undefined, undefined, f.shiny);
 
-    // tap anywhere in the water → buy a guppy
+    // interactive children (coins, shop cards) handle their own taps
     app.stage.eventMode = 'static';
-    app.stage.hitArea = app.screen;
-    app.stage.on('pointerdown', (e: FederatedPointerEvent) => this.onTap(e.global.x, e.global.y));
 
     this.resize(this.width, this.height);
     this.sidebar.refresh();
@@ -92,7 +90,6 @@ export class World {
   resize(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this.app.stage.hitArea = this.app.screen;
     this.background.draw(this.waterLeft, width, height);
     this.seaweed.layout(this.waterLeft, width, height);
     this.sidebar.layout(height);
@@ -127,14 +124,7 @@ export class World {
     }
   }
 
-  // ─── input ──────────────────────────────────────────────────────────
-
-  private onTap(x: number, y: number) {
-    if (x < this.waterLeft || y < this.waterTop || y > this.sandTop) return;
-    if (this.gold < CONFIG.shop.goldfish) return;
-    this.spend(CONFIG.shop.goldfish);
-    this.plopFish();
-  }
+  // ─── shop ───────────────────────────────────────────────────────────
 
   buyGoldfish() {
     if (this.gold < CONFIG.shop.goldfish) return;
